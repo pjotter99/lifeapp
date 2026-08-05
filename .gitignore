@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build-Output
+dist/
+*.tsbuildinfo
+
+# Datenbank — lokale Nutzerdaten, gehören nicht ins Repo
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lokale Env-Overrides
+.env
+.env.local
