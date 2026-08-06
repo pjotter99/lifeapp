@@ -51,6 +51,13 @@ source, source_hash, category_locked, recurring_id (nullable), created_at
 ### recurring
 **Fixkosten und Abos sind dieselbe Tabelle.** Ein Abo ist ein Fixkosten-Eintrag
 mit Kündigungsfrist. Nicht zwei Konzepte bauen.
+
+**`recurring` ist reine Referenzliste zur Berechnung der monatlichen
+Grundlast (und `cancel_by`) — sie erzeugt keine Buchungen.** Kein
+automatischer Job, der aus einem `recurring`-Eintrag eine `transactions`-Zeile
+macht. Wenn eine tatsächliche Buchung zu einem Fixkosten-Posten gehört, wird
+sie regulär in `transactions` erfasst und optional per `recurring_id`
+verknüpft.
 ```
 id, name, amount_cents, category_id, account_id,
 interval ('monthly'|'quarterly'|'yearly'), next_due,
