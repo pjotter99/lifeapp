@@ -1,1 +1,84 @@
 @import 'tailwindcss';
+
+/* Selbst gehostet statt Google-Fonts-CDN — CLAUDE.md erlaubt keine externen
+   Requests. Gewichte bewusst schlank gehalten. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+:root {
+  --bg: #15171b;
+  --surface: #1d2026;
+  --surface-2: #24282f;
+  --border: #2a2e37;
+  --text: #e8eaed;
+  --text-dim: #8b929e;
+  --positive: #4ade80;
+  --negative: #f87171;
+  --accent: #7c8cf8;
+
+  /* Text auf hellen, gesaettigten Flaechen (accent/negative als Button-Bg) —
+     dunkler Text kontrastiert dort zuverlaessiger als heller. */
+  --on-accent: var(--bg);
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Radius 14px durchgehend, 20px nur bei Karten. */
+  --radius-md: 14px;
+  --radius-card: 20px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+
+  /* Sichtbarer Tastaturfokus ueberall, aber nur bei Tastaturnutzung —
+     Mausklick-Fokus bleibt ruhig, ohne outline global zu killen (das
+     wuerde auch echte Tastatur-Fokusringe unterdruecken). */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.tabular-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
