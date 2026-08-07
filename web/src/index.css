@@ -53,6 +53,11 @@
     background-color: var(--bg);
     color: var(--text);
     font-family: var(--font-sans);
+    /* Notch/Home-Indicator: braucht viewport-fit=cover (index.html) plus
+       apple-mobile-web-app-status-bar-style=black-translucent, sonst bleibt
+       env() ueberall 0. Addiert sich vor dem p-4 der Screens, ersetzt es nicht. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
   }
 
   /* Sichtbarer Tastaturfokus ueberall, aber nur bei Tastaturnutzung —

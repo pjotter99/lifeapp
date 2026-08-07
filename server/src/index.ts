@@ -13,7 +13,10 @@ registerRoutes(app);
 
 const PORT = 3001;
 app
-  .listen({ port: PORT, host: '127.0.0.1' })
+  // 0.0.0.0 statt 127.0.0.1: im lokalen Netz erreichbar, damit die App vom
+  // Handy aus benutzbar ist. Kein Auth-Layer (CLAUDE.md, "ein Mensch, ein
+  // Geraet") — das API ist damit fuer jeden im selben Netz offen.
+  .listen({ port: PORT, host: '0.0.0.0' })
   .catch((err) => {
     app.log.error(err);
     process.exit(1);
