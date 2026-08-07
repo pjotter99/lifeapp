@@ -106,6 +106,13 @@ statutory_pension_cents (nullable), pension_start_age
 - **Ausgabe erfassen muss in zwei Taps gehen.** Betrag + Kategorie, alles andere
   optional mit Defaults (heute, Standardkonto). Wenn das umständlich wird, wird
   die App nicht benutzt. Dieser Screen hat Vorrang vor allem anderen.
+
+  **Bekannte Abweichung:** Die Kategorie-Auswahl ist real dreistufig (Betrag →
+  Oberkategorie → Unterkategorie), weil das Datenmodell zweistufige Kategorien
+  hat und jede Buchung eine Unterkategorie braucht. Die „Häufig"-Zeile über dem
+  Kategoriegitter (die fünf meistgenutzten Unterkategorien der letzten 60 Tage,
+  ein Tap speichert direkt) ist der Schnellweg, der die zwei Taps für die
+  üblichen Fälle wiederherstellt. Ist die Historie leer, entfällt die Zeile.
 - Mobile first. Der Desktop ist der Zweitfall.
 - Keine Modals für Kernfunktionen.
 

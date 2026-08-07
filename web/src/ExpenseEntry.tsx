@@ -24,6 +24,7 @@ const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
 
 export function ExpenseEntry() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [frequentCategories, setFrequentCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today);
@@ -33,6 +34,12 @@ export function ExpenseEntry() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+
+  function loadFrequentCategories() {
+    fetch('/api/categories/frequent')
+      .then((r) => r.json())
+      .then(setFrequentCategories);
+  }
 
   useEffect(() => {
     fetch('/api/categories')
@@ -44,6 +51,7 @@ export function ExpenseEntry() {
         setAccounts(data);
         setAccountId(data[0]?.id ?? null);
       });
+    loadFrequentCategories();
     amountRef.current?.focus();
   }, []);
 
@@ -94,6 +102,7 @@ export function ExpenseEntry() {
       }
 
       resetForm();
+      loadFrequentCategories();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
     } finally {
@@ -124,6 +133,19 @@ export function ExpenseEntry() {
         />
         {error && <p className="mt-2 text-center text-sm text-negative">{error}</p>}
       </Card>
+
+      {frequentCategories.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Häufig</span>
+          <div className="flex flex-wrap gap-2">
+            {frequentCategories.map((cat) => (
+              <Chip key={cat.id} disabled={saving} onClick={() => saveWithCategory(cat.id)}>
+                {cat.name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">

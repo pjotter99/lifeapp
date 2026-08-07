@@ -39,6 +39,27 @@ export function registerRoutes(app: FastifyInstance): void {
       .all(),
   );
 
+  // Die fuenf meistgenutzten Unterkategorien der letzten 60 Tage — Schnellweg
+  // fuer die Ausgabenerfassung (siehe CLAUDE.md, Abweichung von der Zwei-Tap-Regel).
+  app.get('/api/categories/frequent', async () =>
+    db
+      .prepare<
+        [],
+        CategoryRow
+      >(
+        `SELECT c.id, c.name, c.parent_id, c.sort_order, c.archived
+         FROM transactions t
+         JOIN categories c ON c.id = t.category_id
+         WHERE c.parent_id IS NOT NULL
+           AND c.archived = 0
+           AND t.date >= date('now', '-60 days')
+         GROUP BY c.id
+         ORDER BY COUNT(*) DESC, MAX(t.date) DESC
+         LIMIT 5`,
+      )
+      .all(),
+  );
+
   app.get('/api/accounts', async () =>
     db
       .prepare<[], AccountRow>('SELECT id, name, type, active FROM accounts WHERE active = 1 ORDER BY id')
