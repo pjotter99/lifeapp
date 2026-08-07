@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button, Card, Chip, Input } from './components';
 
 interface Category {
   id: number;
@@ -27,6 +28,7 @@ export function ExpenseEntry() {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today);
   const [accountId, setAccountId] = useState<number | null>(null);
+  const [topCategoryId, setTopCategoryId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,16 +48,18 @@ export function ExpenseEntry() {
   }, []);
 
   const topCategories = categories.filter((c) => c.parent_id === null);
+  const subCategories = categories.filter((c) => c.parent_id === topCategoryId);
   const needsAccountField = accounts.length > 1;
 
   function resetForm() {
     setAmount('');
     setDate(today());
     setAccountId(accounts[0]?.id ?? null);
+    setTopCategoryId(null);
     setDetailsOpen(false);
   }
 
-  async function selectCategory(categoryId: number) {
+  async function saveWithCategory(categoryId: number) {
     const parsed = Number.parseFloat(amount.replace(',', '.'));
     if (!amount || Number.isNaN(parsed) || parsed <= 0) {
       setError('Erst einen Betrag eingeben.');
@@ -98,11 +102,17 @@ export function ExpenseEntry() {
     }
   }
 
+  function selectTopCategory(id: number) {
+    // Nochmal antippen geht zurueck zu den Oberkategorien.
+    setTopCategoryId((current) => (current === id ? null : id));
+  }
+
   return (
-    <div className="flex min-h-svh flex-col gap-6 bg-white p-4 text-gray-900">
-      <div>
-        <input
+    <div className="flex min-h-svh flex-col gap-6 p-4">
+      <Card>
+        <Input
           ref={amountRef}
+          fieldSize="lg"
           type="text"
           inputMode="decimal"
           autoFocus
@@ -111,60 +121,49 @@ export function ExpenseEntry() {
           onChange={(e) => {
             if (AMOUNT_PATTERN.test(e.target.value)) setAmount(e.target.value);
           }}
-          className="w-full border-b-2 border-gray-300 py-4 text-center text-5xl font-semibold outline-none focus:border-blue-500"
         />
-        {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-center text-sm text-negative">{error}</p>}
+      </Card>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          {topCategories.map((cat) => (
+            <Chip key={cat.id} selected={cat.id === topCategoryId} disabled={saving} onClick={() => selectTopCategory(cat.id)}>
+              {cat.name}
+            </Chip>
+          ))}
+        </div>
+
+        {topCategoryId !== null && (
+          <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+            {subCategories.map((cat) => (
+              <Chip key={cat.id} disabled={saving} onClick={() => saveWithCategory(cat.id)}>
+                {cat.name}
+              </Chip>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {topCategories.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            disabled={saving}
-            onClick={() => selectCategory(cat.id)}
-            className="rounded-xl bg-gray-100 py-5 text-base font-medium active:bg-gray-200 disabled:opacity-50"
-          >
-            {cat.name}
-          </button>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setDetailsOpen((open) => !open)}
-        className="self-start text-sm text-gray-500 underline"
-      >
+      <Button variant="secondary" className="self-start" onClick={() => setDetailsOpen((open) => !open)}>
         Details
-      </button>
+      </Button>
 
       {detailsOpen && (
-        <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm text-gray-600">
-            Datum
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="rounded-lg border border-gray-300 p-2"
-            />
-          </label>
+        <div className="flex flex-col gap-4">
+          <Input label="Datum" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
 
           {needsAccountField && (
-            <label className="flex flex-col gap-1 text-sm text-gray-600">
+            <div className="flex flex-col gap-1.5 text-sm text-text-dim">
               Konto
-              <select
-                value={accountId ?? ''}
-                onChange={(e) => setAccountId(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 p-2"
-              >
+              <div className="flex flex-wrap gap-2">
                 {accounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
+                  <Chip key={acc.id} selected={acc.id === accountId} onClick={() => setAccountId(acc.id)}>
                     {acc.name}
-                  </option>
+                  </Chip>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
           )}
         </div>
       )}
