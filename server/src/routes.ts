@@ -23,6 +23,20 @@ interface CreateTransactionBody {
   date?: unknown;
 }
 
+interface TransactionListRow {
+  id: number;
+  date: string;
+  amount_cents: number;
+  category_id: number;
+  category_name: string;
+  is_transfer: number;
+}
+
+interface MonthSummaryRow {
+  income_cents: number;
+  expense_cents: number;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function today(): string {
@@ -65,6 +79,51 @@ export function registerRoutes(app: FastifyInstance): void {
       .prepare<[], AccountRow>('SELECT id, name, type, active FROM accounts WHERE active = 1 ORDER BY id')
       .all(),
   );
+
+  // Letzte Buchungen fuer den Kontext unter dem Kategoriegitter. limit ist
+  // zum Schutz gegen Missbrauch begrenzt, nicht weil es hier viele Nutzer gaebe.
+  app.get<{ Querystring: { limit?: string } }>('/api/transactions', async (request) => {
+    const parsed = Number.parseInt(request.query.limit ?? '10', 10);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 100) : 10;
+
+    return db
+      .prepare<
+        [number],
+        TransactionListRow
+      >(
+        `SELECT t.id, t.date, t.amount_cents, t.category_id, c.name AS category_name, t.is_transfer
+         FROM transactions t
+         JOIN categories c ON c.id = t.category_id
+         ORDER BY t.date DESC, t.id DESC
+         LIMIT ?`,
+      )
+      .all(limit);
+  });
+
+  // Einnahmen/Ausgaben/Saldo des laufenden Kalendermonats. Transfers zaehlen
+  // nicht mit (CLAUDE.md: "Die Sparrate ist ein Transfer, keine Ausgabe").
+  app.get('/api/summary/month', async () => {
+    const row = db
+      .prepare<
+        [],
+        MonthSummaryRow
+      >(
+        `SELECT
+           COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income_cents,
+           COALESCE(SUM(CASE WHEN amount_cents < 0 THEN amount_cents ELSE 0 END), 0) AS expense_cents
+         FROM transactions
+         WHERE is_transfer = 0
+           AND date >= date('now', 'start of month')
+           AND date < date('now', 'start of month', '+1 month')`,
+      )
+      .get()!;
+
+    return {
+      income_cents: row.income_cents,
+      expense_cents: row.expense_cents,
+      balance_cents: row.income_cents + row.expense_cents,
+    };
+  });
 
   app.post<{ Body: CreateTransactionBody }>('/api/transactions', async (request, reply) => {
     const body = request.body ?? {};
@@ -139,5 +198,21 @@ export function registerRoutes(app: FastifyInstance): void {
 
     const created = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
     return reply.code(201).send(created);
+  });
+
+  // Dient sowohl dem "Rueckgaengig" im Speicher-Toast als auch dem
+  // Wisch-Loeschen in der Liste — dieselbe Aktion, zwei Ausloeser.
+  app.delete<{ Params: { id: string } }>('/api/transactions/:id', async (request, reply) => {
+    const id = Number.parseInt(request.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return reply.code(400).send({ error: 'Ungueltige id.' });
+    }
+
+    const result = db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+    if (result.changes === 0) {
+      return reply.code(404).send({ error: 'Buchung nicht gefunden.' });
+    }
+
+    return reply.code(204).send();
   });
 }

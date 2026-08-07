@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Chip, Input } from './components';
+import { Amount, Button, Card, Chip, Input } from './components';
+import { TransactionRow, type Transaction } from './TransactionRow';
 
 interface Category {
   id: number;
@@ -16,16 +17,33 @@ interface Account {
   active: number;
 }
 
+interface MonthSummary {
+  income_cents: number;
+  expense_cents: number;
+  balance_cents: number;
+}
+
+interface Toast {
+  transactionId: number;
+  amountCents: number;
+  categoryName: string;
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
+const TOAST_DURATION_MS = 3000;
 
 export function ExpenseEntry() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [frequentCategories, setFrequentCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [summary, setSummary] = useState<MonthSummary | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [openRowId, setOpenRowId] = useState<number | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -34,11 +52,30 @@ export function ExpenseEntry() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function loadFrequentCategories() {
     fetch('/api/categories/frequent')
       .then((r) => r.json())
       .then(setFrequentCategories);
+  }
+
+  function loadSummary() {
+    fetch('/api/summary/month')
+      .then((r) => r.json())
+      .then(setSummary);
+  }
+
+  function loadRecentTransactions() {
+    fetch('/api/transactions?limit=10')
+      .then((r) => r.json())
+      .then(setRecentTransactions);
+  }
+
+  function refreshDerivedData() {
+    loadFrequentCategories();
+    loadSummary();
+    loadRecentTransactions();
   }
 
   useEffect(() => {
@@ -51,8 +88,12 @@ export function ExpenseEntry() {
         setAccounts(data);
         setAccountId(data[0]?.id ?? null);
       });
-    loadFrequentCategories();
+    refreshDerivedData();
     amountRef.current?.focus();
+
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   const topCategories = categories.filter((c) => c.parent_id === null);
@@ -65,6 +106,31 @@ export function ExpenseEntry() {
     setAccountId(accounts[0]?.id ?? null);
     setTopCategoryId(null);
     setDetailsOpen(false);
+  }
+
+  function showToast(next: Toast) {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(next);
+    toastTimerRef.current = setTimeout(() => setToast(null), TOAST_DURATION_MS);
+  }
+
+  async function undoToast() {
+    if (!toast) return;
+    const { transactionId } = toast;
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(null);
+    await fetch(`/api/transactions/${transactionId}`, { method: 'DELETE' });
+    refreshDerivedData();
+  }
+
+  async function deleteTransaction(id: number) {
+    setOpenRowId(null);
+    if (toast?.transactionId === id) {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      setToast(null);
+    }
+    await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+    refreshDerivedData();
   }
 
   async function saveWithCategory(categoryId: number) {
@@ -101,8 +167,15 @@ export function ExpenseEntry() {
         throw new Error(data.error ?? 'Speichern fehlgeschlagen.');
       }
 
+      const created: { id: number; amount_cents: number } = await res.json();
+      const categoryName = categories.find((c) => c.id === categoryId)?.name ?? '';
+
       resetForm();
-      loadFrequentCategories();
+      refreshDerivedData();
+      showToast({ transactionId: created.id, amountCents: created.amount_cents, categoryName });
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
     } finally {
@@ -118,6 +191,23 @@ export function ExpenseEntry() {
 
   return (
     <div className="flex min-h-svh flex-col gap-6 p-4">
+      {summary && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-text-dim">Einnahmen</span>
+            <Amount cents={summary.income_cents} size="sm" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-text-dim">Ausgaben</span>
+            <Amount cents={summary.expense_cents} size="sm" />
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-xs text-text-dim">Saldo</span>
+            <Amount cents={summary.balance_cents} size="sm" />
+          </div>
+        </div>
+      )}
+
       <Card>
         <Input
           ref={amountRef}
@@ -167,6 +257,24 @@ export function ExpenseEntry() {
         )}
       </div>
 
+      {recentTransactions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Letzte Buchungen</span>
+          <div className="flex flex-col gap-2">
+            {recentTransactions.map((tx) => (
+              <TransactionRow
+                key={tx.id}
+                tx={tx}
+                isOpen={tx.id === openRowId}
+                onOpen={() => setOpenRowId(tx.id)}
+                onClose={() => setOpenRowId((current) => (current === tx.id ? null : current))}
+                onDelete={() => deleteTransaction(tx.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <Button variant="secondary" className="self-start" onClick={() => setDetailsOpen((open) => !open)}>
         Details
       </Button>
@@ -187,6 +295,20 @@ export function ExpenseEntry() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed inset-x-4 z-10" style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+          <Card className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm text-text-dim">Gespeichert: {toast.categoryName}</span>
+              <Amount cents={toast.amountCents} size="sm" />
+            </div>
+            <Button variant="secondary" onClick={undoToast}>
+              Rückgängig
+            </Button>
+          </Card>
         </div>
       )}
     </div>
