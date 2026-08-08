@@ -1,10 +1,15 @@
 import Fastify from 'fastify';
 import { runMigrations } from './migrate.ts';
 import { registerRoutes } from './routes.ts';
+import { scheduleRecurringJob } from './recurringJob.ts';
 
 // Migrationen laufen beim Start durch — kein separater Deploy-Schritt fuer
 // eine Einzelnutzer-App, die lokal laeuft.
 runMigrations((msg) => console.log(msg));
+
+// Faellige Buchungen aus recurring: einmal jetzt, danach alle 24h. Holt
+// uebersprungene Perioden nach (Server war z. B. eine Woche aus).
+scheduleRecurringJob();
 
 const app = Fastify({ logger: true });
 
