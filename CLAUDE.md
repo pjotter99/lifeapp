@@ -449,10 +449,12 @@ Erledigt:
 - Punkt 2: `/stammdaten` umgestellt, kein fetch mehr.
 - Punkt 2: `/api/dashboard`-Aggregat als Funktion portiert —
   `web/src/data/dashboard.ts`, 12 Tests. `/` (Dashboard) umgestellt.
+- Punkt 2: `/api/summary/categories`-Aggregat als Funktion portiert —
+  `web/src/data/categorySummary.ts`, 10 Tests. `/auswertung` umgestellt.
 
-Laufen noch gegen Fastify: Auswertung (`/auswertung`).
-
-Fehlende Funktionen dafür: `/api/summary/categories`-Aggregat.
+Alle vier Screens (`/`, `/erfassen`, `/auswertung`, `/stammdaten`) laufen
+jetzt vollständig lokal, kein Screen mehr gegen Fastify. Punkt 2 der
+Reihenfolge ist damit abgeschlossen.
 
 Noch offen: Punkt 3 (Recurring-Job auf App-Start), 4 (Backup), 5 (Service
 Worker/Offline), 6 (GitHub Pages).

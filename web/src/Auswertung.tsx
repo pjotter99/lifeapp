@@ -1,34 +1,9 @@
+import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
 import { Amount, Button, Card, ProgressBar } from './components';
 import { BottomTabBar } from './BottomTabBar';
-
-interface TransactionDetail {
-  id: number;
-  date: string;
-  amount_cents: number;
-  payee: string | null;
-  note: string | null;
-}
-
-interface SubCategorySummary {
-  id: number;
-  name: string;
-  amount_cents: number;
-  transactions: TransactionDetail[];
-}
-
-interface CategorySummary {
-  id: number;
-  name: string;
-  amount_cents: number;
-  subcategories: SubCategorySummary[];
-}
-
-interface CategoriesResponse {
-  month: string;
-  total_cents: number;
-  categories: CategorySummary[];
-}
+import { getCategorySummary, type CategorySummary, type CategorySummaryTop } from './data/categorySummary.ts';
+import { getReadyDb } from './data/sqlite.ts';
 
 const MONTH_NAMES = [
   'Januar',
@@ -78,16 +53,18 @@ function chartColor(index: number): string {
 
 export function Auswertung() {
   const [month, setMonth] = useState(currentMonth);
-  const [data, setData] = useState<CategoriesResponse | null>(null);
+  const [data, setData] = useState<CategorySummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [expandedTopId, setExpandedTopId] = useState<number | null>(null);
   const [expandedSubId, setExpandedSubId] = useState<number | null>(null);
 
   useEffect(() => {
     setExpandedTopId(null);
     setExpandedSubId(null);
-    fetch(`/api/summary/categories?month=${month}`)
-      .then((r) => r.json())
-      .then(setData);
+    setError(null);
+    getReadyDb()
+      .then((db: Database) => setData(getCategorySummary(db, month)))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen.'));
   }, [month]);
 
   function toggleTop(id: number) {
@@ -118,6 +95,8 @@ export function Auswertung() {
         </Button>
       </div>
 
+      {error && <p className="text-sm text-negative">{error}</p>}
+
       {data && !hasData && (
         <Card>
           <p className="text-sm text-text-dim">Keine Ausgaben in {monthLabel(month)} erfasst.</p>
@@ -144,8 +123,8 @@ export function Auswertung() {
                   >
                     <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
                     <span className="flex-1 truncate text-sm">{cat.name}</span>
-                    <span className="text-xs text-text-dim">{Math.round(percent)} %</span>
                     <Amount cents={cat.amount_cents} size="sm" />
+                    <span className="w-10 shrink-0 text-right text-xs text-text-dim">{Math.round(percent)} %</span>
                   </button>
                   <ProgressBar value={percent} color={color} />
 
@@ -189,7 +168,7 @@ export function Auswertung() {
   );
 }
 
-function Donut({ categories }: { categories: CategorySummary[] }) {
+function Donut({ categories }: { categories: CategorySummaryTop[] }) {
   const total = categories.reduce((sum, c) => sum + Math.abs(c.amount_cents), 0);
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
