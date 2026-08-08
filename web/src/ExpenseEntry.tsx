@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
+import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
-import { TopNav } from './TopNav';
 import { TransactionRow, type Transaction } from './TransactionRow';
 
 interface Account {
@@ -219,9 +219,7 @@ export function ExpenseEntry() {
   const previewCents = canConfirm ? Math.round(parsedAmount * 100) * (previewIsIncome ? 1 : -1) : 0;
 
   return (
-    <div className="flex min-h-svh flex-col gap-6 p-4">
-      <TopNav />
-
+    <div className="flex min-h-svh flex-col gap-6 p-4" style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}>
       {summary && (
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -328,7 +326,10 @@ export function ExpenseEntry() {
       )}
 
       {toast && (
-        <div className="fixed inset-x-4 z-10" style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+        <div
+          className="fixed inset-x-4 z-10"
+          style={{ bottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
+        >
           <Card className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <span className="text-sm text-text-dim">Gespeichert: {toast.categoryName}</span>
@@ -340,6 +341,8 @@ export function ExpenseEntry() {
           </Card>
         </div>
       )}
+
+      <BottomTabBar />
     </div>
   );
 }

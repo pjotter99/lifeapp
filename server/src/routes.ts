@@ -95,6 +95,19 @@ interface CreateSavingsGoalBody {
   active_from?: unknown;
 }
 
+interface DashboardAccountRow {
+  id: number;
+  opening_balance_cents: number;
+  opening_date: string | null;
+}
+
+interface UpcomingFixedCostRow {
+  id: number;
+  name: string;
+  amount_cents: number;
+  next_due: string;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const KIND_VALUES = ['income', 'expense', 'transfer'];
 const INTERVAL_VALUES = ['monthly', 'quarterly', 'yearly'];
@@ -109,6 +122,13 @@ function today(): string {
 // Faelligkeit ist immer start_date selbst, keine Suche noetig.
 function dayOfMonthFromDate(dateStr: string): number {
   return Number.parseInt(dateStr.slice(8, 10), 10);
+}
+
+// "monatliche Grundlast = Summe aller aktiven, auf Monat normalisiert" (CLAUDE.md).
+function monthlyEquivalentCents(amountCents: number, interval: string): number {
+  if (interval === 'quarterly') return amountCents / 3;
+  if (interval === 'yearly') return amountCents / 12;
+  return amountCents;
 }
 
 export function registerRoutes(app: FastifyInstance): void {
@@ -520,6 +540,149 @@ export function registerRoutes(app: FastifyInstance): void {
     };
   });
 
+  app.get('/api/dashboard', async () => {
+    const currentMonth = today().slice(0, 7);
+
+    // --- Kontostand: opening_balance_cents + Buchungen ab opening_date, pro
+    // aktivem Konto summiert. Fehlt bei irgendeinem opening_date, ist der
+    // Gesamtwert nicht verlaesslich berechenbar.
+    const accounts = db
+      .prepare<[], DashboardAccountRow>('SELECT id, opening_balance_cents, opening_date FROM accounts WHERE active = 1')
+      .all();
+    const balanceAvailable = accounts.length > 0 && accounts.every((a) => a.opening_date !== null);
+
+    let balanceCents: number | null = null;
+    if (balanceAvailable) {
+      balanceCents = 0;
+      for (const acc of accounts) {
+        const sum = db
+          .prepare<
+            [number, string],
+            { total: number }
+          >('SELECT COALESCE(SUM(amount_cents), 0) AS total FROM transactions WHERE account_id = ? AND date >= ?')
+          .get(acc.id, acc.opening_date!)!.total;
+        balanceCents += acc.opening_balance_cents + sum;
+      }
+    }
+
+    // --- Anstehende Fixkosten: aktive kind='expense'-Eintraege, faellig
+    // diesen Monat, fuer die noch keine Buchung dieser Periode existiert.
+    const upcomingFixedCosts = db
+      .prepare<
+        [string, string],
+        UpcomingFixedCostRow
+      >(
+        `SELECT r.id, r.name, r.amount_cents, r.next_due
+         FROM recurring r
+         WHERE r.active = 1 AND r.kind = 'expense'
+           AND substr(r.next_due, 1, 7) = ?
+           AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.recurring_id = r.id AND t.period = ?)
+         ORDER BY r.next_due`,
+      )
+      .all(currentMonth, currentMonth);
+    const pendingFixedCostsCents = upcomingFixedCosts.reduce((sum, r) => sum + r.amount_cents, 0);
+
+    // --- Sparrate erreicht diesen Monat: Summe aller Transfer-Buchungen.
+    const achievedCents = db
+      .prepare<
+        [],
+        { total: number }
+      >(
+        `SELECT COALESCE(SUM(ABS(amount_cents)), 0) AS total
+         FROM transactions
+         WHERE is_transfer = 1
+           AND date >= date('now', 'start of month')
+           AND date < date('now', 'start of month', '+1 month')`,
+      )
+      .get()!.total;
+
+    // --- Sparziel: aktuelles Ziel, bei mode='percent' Basis = reguleares
+    // Nettogehalt (aktive recurring kind='income', ohne "Sonderzahlung").
+    const goal = db
+      .prepare<
+        [],
+        SavingsGoalRow
+      >(`SELECT * FROM savings_goal WHERE active_from <= date('now') ORDER BY active_from DESC, id DESC LIMIT 1`)
+      .get();
+
+    let goalCents: number | null = null;
+    let basisCents: number | null = null;
+    if (goal) {
+      if (goal.mode === 'amount') {
+        goalCents = goal.monthly_target_cents;
+      } else {
+        const incomeEntries = db
+          .prepare<
+            [],
+            { amount_cents: number; interval: string }
+          >(
+            `SELECT r.amount_cents, r.interval
+             FROM recurring r
+             JOIN categories c ON c.id = r.category_id
+             WHERE r.active = 1 AND r.kind = 'income' AND c.name != 'Sonderzahlung'`,
+          )
+          .all();
+        basisCents = Math.round(incomeEntries.reduce((sum, r) => sum + monthlyEquivalentCents(r.amount_cents, r.interval), 0));
+        goalCents = Math.round((basisCents * (goal.target_percent ?? 0)) / 100);
+      }
+    }
+    const missingSavingsCents = goalCents !== null ? Math.max(0, goalCents - achievedCents) : 0;
+
+    // --- Verfuegbar bis Monatsende.
+    const availableUntilMonthEndCents =
+      balanceCents !== null ? balanceCents + pendingFixedCostsCents - missingSavingsCents : null;
+
+    // --- Ausgaben diesen Monat, Transfers ausgeschlossen.
+    const expensesThisMonthCents = db
+      .prepare<
+        [],
+        { total: number }
+      >(
+        `SELECT COALESCE(SUM(amount_cents), 0) AS total
+         FROM transactions
+         WHERE is_transfer = 0 AND amount_cents < 0
+           AND date >= date('now', 'start of month')
+           AND date < date('now', 'start of month', '+1 month')`,
+      )
+      .get()!.total;
+
+    // --- Nicht erfasst diesen Monat (Kategorie "Sonstiges > Nicht erfasst").
+    const unrecordedThisMonthCents = db
+      .prepare<
+        [],
+        { total: number }
+      >(
+        `SELECT COALESCE(SUM(t.amount_cents), 0) AS total
+         FROM transactions t
+         JOIN categories c ON c.id = t.category_id
+         WHERE c.name = 'Nicht erfasst'
+           AND t.date >= date('now', 'start of month')
+           AND t.date < date('now', 'start of month', '+1 month')`,
+      )
+      .get()!.total;
+
+    return {
+      month: currentMonth,
+      balance: { available: balanceAvailable, balance_cents: balanceCents },
+      available_until_month_end_cents: availableUntilMonthEndCents,
+      savings_rate: {
+        mode: goal?.mode ?? null,
+        achieved_cents: achievedCents,
+        goal_cents: goalCents,
+        target_percent: goal?.mode === 'percent' ? goal.target_percent : null,
+        basis_cents: basisCents,
+      },
+      upcoming_fixed_costs: upcomingFixedCosts.map((r) => ({
+        id: r.id,
+        name: r.name,
+        amount_cents: r.amount_cents,
+        due_date: r.next_due,
+      })),
+      expenses_this_month_cents: expensesThisMonthCents,
+      unrecorded_this_month_cents: unrecordedThisMonthCents,
+    };
+  });
+
   app.post<{ Body: CreateTransactionBody }>('/api/transactions', async (request, reply) => {
     const body = request.body ?? {};
 
@@ -543,13 +706,14 @@ export function registerRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'Unbekannte oder archivierte Kategorie.' });
     }
 
-    // Zweistufig: Ober- oder Unterkategorie kann "Einnahmen" sein.
+    // Zweistufig: Ober- oder Unterkategorie kann "Einnahmen" oder "Transfer" sein.
     let rootName = category.name;
     if (category.parent_id !== null) {
       const parent = db.prepare<[number], { name: string }>('SELECT name FROM categories WHERE id = ?').get(category.parent_id);
       rootName = parent?.name ?? rootName;
     }
     const isIncome = rootName === 'Einnahmen';
+    const isTransfer = rootName === 'Transfer';
 
     let accountId: number;
     if (body.account_id !== undefined) {
@@ -586,10 +750,10 @@ export function registerRoutes(app: FastifyInstance): void {
     const result = db
       .prepare(
         `INSERT INTO transactions
-           (date, amount_cents, category_id, account_id, source, source_hash, category_locked, recurring_id)
-         VALUES (?, ?, ?, ?, 'manual', NULL, 1, NULL)`,
+           (date, amount_cents, category_id, account_id, source, source_hash, category_locked, recurring_id, is_transfer)
+         VALUES (?, ?, ?, ?, 'manual', NULL, 1, NULL, ?)`,
       )
-      .run(date, storedAmount, categoryId, accountId);
+      .run(date, storedAmount, categoryId, accountId, isTransfer ? 1 : 0);
 
     const created = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
     return reply.code(201).send(created);

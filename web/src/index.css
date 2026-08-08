@@ -22,6 +22,11 @@
   /* Text auf hellen, gesaettigten Flaechen (accent/negative als Button-Bg) —
      dunkler Text kontrastiert dort zuverlaessiger als heller. */
   --on-accent: var(--bg);
+
+  /* Intrinsische Hoehe der BottomTabBar (ohne Safe-Area-Anteil) — als
+     Variable, damit Screen-Padding und fixe Elemente (z. B. Toast) nicht
+     unabhaengig voneinander nachgepflegt werden muessen. */
+  --tabbar-height: 64px;
 }
 
 @theme {

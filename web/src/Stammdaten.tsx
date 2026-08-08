@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
+import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
-import { TopNav } from './TopNav';
 
 interface Account {
   id: number;
@@ -107,12 +107,15 @@ export function Stammdaten() {
   }, []);
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-10 p-4">
-      <TopNav />
+    <div
+      className="mx-auto flex min-h-svh max-w-2xl flex-col gap-10 p-4"
+      style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
+    >
       <h1 className="text-2xl font-semibold">Stammdaten</h1>
       <AccountSection accounts={accounts} onSaved={loadAccounts} />
       <SavingsGoalSection goal={savingsGoal} onSaved={loadSavingsGoal} />
       <RecurringSection categories={categories} recurring={recurring} onChanged={loadRecurring} />
+      <BottomTabBar />
     </div>
   );
 }
