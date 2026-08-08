@@ -198,7 +198,7 @@ stehen.
 `accounts.opening_balance_cents` und `accounts.opening_date`.
 Kontostand = opening_balance + Summe aller Buchungen ab opening_date.
 
-### Kategorienbaum (Migration 004 ersetzt den Seed aus 001)
+### Kategorienbaum (Migration 004 ersetzt den Seed aus 001, Migration 005 ergänzt Bargeld)
 
 ```
 Einnahmen        Gehalt · Sonderzahlung · Steuererstattung · Sonstiges
@@ -212,9 +212,14 @@ Persönlich       Beauty · Kleidung · Geschenke · Handy ·
 Freizeit         Feiern · Sonstiges
 Versicherungen   Haftpflicht · Hausrat · BU
 Kredite          Sonstiges
-Sonstiges        Nicht erfasst · Sonstiges
+Sonstiges        Nicht erfasst · Sonstiges · Bargeld
 Transfer         Sparen
 ```
+
+Bargeld ist eine normale Ausgabe (Bargeldabhebung), kein Transfer —
+`is_transfer` bleibt 0, obwohl auch hier Geld zwischen "Konten" (Giro → Bar)
+wandert. Anders als bei Sparen wird die Bar-Seite hier nicht als eigenes Konto
+geführt, deshalb zählt die Abhebung als Ausgabe.
 
 **"Abos" ist keine Kategorie.** Ein Abo ist ein `recurring`-Eintrag und trägt die
 Kategorie seines Inhalts (Netflix → Freizeit, Fitnessstudio → Mitgliedschaften).
