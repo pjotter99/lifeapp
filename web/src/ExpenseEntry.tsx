@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
+import { CategoryPicker, type Category } from './CategoryPicker';
 import { TransactionRow, type Transaction } from './TransactionRow';
-
-interface Category {
-  id: number;
-  name: string;
-  parent_id: number | null;
-  sort_order: number;
-  archived: number;
-}
 
 interface Account {
   id: number;
@@ -96,8 +89,6 @@ export function ExpenseEntry() {
     };
   }, []);
 
-  const topCategories = categories.filter((c) => c.parent_id === null);
-  const subCategories = categories.filter((c) => c.parent_id === topCategoryId);
   const needsAccountField = accounts.length > 1;
 
   function resetForm() {
@@ -237,25 +228,13 @@ export function ExpenseEntry() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          {topCategories.map((cat) => (
-            <Chip key={cat.id} selected={cat.id === topCategoryId} disabled={saving} onClick={() => selectTopCategory(cat.id)}>
-              {cat.name}
-            </Chip>
-          ))}
-        </div>
-
-        {topCategoryId !== null && (
-          <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-            {subCategories.map((cat) => (
-              <Chip key={cat.id} disabled={saving} onClick={() => saveWithCategory(cat.id)}>
-                {cat.name}
-              </Chip>
-            ))}
-          </div>
-        )}
-      </div>
+      <CategoryPicker
+        categories={categories}
+        topCategoryId={topCategoryId}
+        onSelectTop={selectTopCategory}
+        onSelectSub={saveWithCategory}
+        disabled={saving}
+      />
 
       {recentTransactions.length > 0 && (
         <div className="flex flex-col gap-2">
