@@ -366,17 +366,49 @@ im IndexedDB des jeweiligen Geräts.
   und damit iCloud Drive als Ziel erscheint.
 - Auf Desktop normaler Download.
 
+#### Selbsterklärende Sicherung
+
+Die ZIP enthält zusätzlich `LIESMICH.txt`: Erstellungsdatum, App-Version,
+Schema-Version, eine Inhaltsübersicht (Zeitraum, Anzahl Buchungen je Tabelle)
+und eine kurze Anleitung, wie man die Daten auch ohne diese App liest.
+
+Die CSV enthält alle Buchungen mit Klarnamen der Kategorien (Ober- und
+Unterkategorie), nicht mit IDs — lesbar, auch wenn die Datenbank selbst
+irgendwann nicht mehr zu öffnen ist.
+
 #### Wiederherstellen
 
-- Import akzeptiert die ZIP oder die einzelne DB-Datei.
-- Vor dem Überschreiben eine Sicherung des aktuellen Zustands anlegen.
-- Nach dem Import Migrationen laufen lassen, falls die Sicherung älter ist.
+Import akzeptiert die ZIP, die einzelne `.sqlite`-Datei oder die CSV.
+
+Ablauf:
+1. Datei prüfen (Format, lesbar).
+2. Schema-Version lesen.
+3. Inhalt im Voraus anzeigen — Zeitraum, Anzahl Buchungen, Summen — bevor
+   irgendetwas übernommen wird.
+4. Erst nach Bestätigung durch den Nutzer übernehmen.
+
+Vor dem Überschreiben automatisch den aktuellen Zustand sichern, danach
+Rückgängig anbieten.
+
+Ist die Sicherung älter als das aktuelle Schema, laufen die fehlenden
+Migrationen automatisch nach. Ist sie neuer (Schema-Version höher als die der
+laufenden App), wird der Import mit klarer Meldung abgelehnt — kein stiller
+Downgrade-Versuch.
 
 #### Sichtbarkeit
 
 Auf dem Dashboard eine unauffällige Zeile: Zeitpunkt der letzten erfolgreichen
 Sicherung. Liegt sie mehr als 7 Tage zurück, wird die Zeile in `--negative`
 eingefärbt. Kein Modal, kein Nag — nur sichtbar.
+
+#### Erinnerung
+
+Die App merkt sich den Zeitpunkt des letzten manuellen Exports. Liegt er mehr
+als 90 Tage zurück oder gab es nie einen, erscheint beim Start eine Karte auf
+dem Dashboard mit direktem Export-Knopf. Wegklickbar, dann für 7 Tage nicht
+wieder.
+
+Keine Push-Benachrichtigung — auf iOS für PWAs unzuverlässig.
 
 ### Offline
 
