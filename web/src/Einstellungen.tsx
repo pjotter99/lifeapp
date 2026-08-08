@@ -1,11 +1,24 @@
 import type { Database } from 'sql.js';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Amount, Button, Card } from './components';
+import { Amount, Button, Card, Input } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { buildExportArchive, prepareImportPreview, type ImportPreview } from './data/backup.ts';
-import { clearImportUndoSnapshot, loadImportUndoSnapshot, persistDb, saveImportUndoSnapshot } from './data/indexeddb.ts';
+import type { GithubSettings } from './data/githubBackup.ts';
+import { maybeRunGithubBackup } from './data/githubBackupScheduler.ts';
+import {
+  clearImportUndoSnapshot,
+  loadGithubBackupError,
+  loadGithubSettings,
+  loadImportUndoSnapshot,
+  loadLastGithubBackupSuccessAt,
+  persistDb,
+  saveGithubSettings,
+  saveImportUndoSnapshot,
+  saveLastManualExportAt,
+} from './data/indexeddb.ts';
 import { migrationFiles } from './data/migrationFiles.ts';
 import { getReadyDb, openDatabaseFromBytes } from './data/sqlite.ts';
+import { shareOrDownload } from './shareOrDownload.ts';
 
 type ImportState = 'idle' | 'checking' | 'preview' | 'importing';
 
@@ -14,24 +27,20 @@ interface PendingImport {
   result: ImportPreview;
 }
 
-// Web-Share-API mit Datei-Anhang, wenn verfuegbar (iOS: "In Dateien
-// sichern" landet damit auf iCloud Drive) — sonst normaler Download
-// (Desktop). CLAUDE.md, Abschnitt "Manuell: Datei teilen".
-async function shareOrDownload(blob: Blob, filename: string): Promise<void> {
-  const file = new File([blob], filename, { type: blob.type });
-  if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file] });
-    return;
-  }
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function formatGermanDateTime(iso: string): string {
+  const date = new Date(iso);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${yyyy}, ${hh}:${min} Uhr`;
+}
+
+function isStale(iso: string | null): boolean {
+  return !iso || Date.now() - new Date(iso).getTime() > SEVEN_DAYS_MS;
 }
 
 export function Einstellungen() {
@@ -66,6 +75,7 @@ export function Einstellungen() {
       // indexeddb.ts).
       const blob = new Blob([bytes.slice()], { type: 'application/zip' });
       await shareOrDownload(blob, filename);
+      await saveLastManualExportAt(new Date().toISOString());
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         // Nutzer hat den Teilen-Dialog abgebrochen — kein Fehler.
@@ -244,7 +254,101 @@ export function Einstellungen() {
         )}
       </section>
 
+      <GithubBackupSection db={db} />
+
       <BottomTabBar />
     </div>
+  );
+}
+
+interface GithubStatus {
+  lastSuccessAt: string | null;
+  lastError: string | null;
+}
+
+function GithubBackupSection({ db }: { db: Database | null }) {
+  const [token, setToken] = useState('');
+  const [owner, setOwner] = useState('');
+  const [repo, setRepo] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState<GithubStatus | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([loadGithubSettings(), loadLastGithubBackupSuccessAt(), loadGithubBackupError()]).then(
+      ([settings, lastSuccessAt, lastError]) => {
+        if (settings) {
+          setToken(settings.token);
+          setOwner(settings.owner);
+          setRepo(settings.repo);
+        }
+        setStatus({ lastSuccessAt: lastSuccessAt ?? null, lastError: lastError ?? null });
+        setLoaded(true);
+      },
+    );
+  }, []);
+
+  async function refreshStatus() {
+    const [lastSuccessAt, lastError] = await Promise.all([loadLastGithubBackupSuccessAt(), loadGithubBackupError()]);
+    setStatus({ lastSuccessAt: lastSuccessAt ?? null, lastError: lastError ?? null });
+  }
+
+  async function handleSave() {
+    if (!db) return;
+    const trimmed: GithubSettings = { token: token.trim(), owner: owner.trim(), repo: repo.trim() };
+    if (!trimmed.token || !trimmed.owner || !trimmed.repo) {
+      setFormError('Token, Besitzer und Repository-Name werden benötigt.');
+      return;
+    }
+
+    setFormError(null);
+    setSaving(true);
+    try {
+      await saveGithubSettings(trimmed);
+      // Sofort testen statt bis zu 15 Minuten auf die naechste Aenderung zu
+      // warten — gibt unmittelbares Feedback, ob Token/Repo funktionieren.
+      await maybeRunGithubBackup(db, { force: true });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
+    } finally {
+      await refreshStatus();
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">GitHub-Backup</h2>
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm text-text-dim">
+          Automatische Sicherung nach jeder Änderung (frühestens alle 15 Minuten) in ein privates GitHub-Repository.
+          Fine-grained Personal Access Token mit Schreibrechten auf genau dieses Repository.
+        </p>
+
+        <Input
+          label="Token"
+          type="password"
+          autoComplete="off"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+        />
+        <Input label="Repository-Besitzer" value={owner} onChange={(e) => setOwner(e.target.value)} />
+        <Input label="Repository-Name" value={repo} onChange={(e) => setRepo(e.target.value)} />
+
+        {formError && <p className="text-sm text-negative">{formError}</p>}
+
+        <Button variant="primary" className="self-start" disabled={!db || saving} onClick={handleSave}>
+          {saving ? 'Wird gespeichert…' : 'Speichern'}
+        </Button>
+
+        {loaded && status && (
+          <p className={`text-xs ${isStale(status.lastSuccessAt) ? 'text-negative' : 'text-text-dim'}`}>
+            {status.lastSuccessAt ? `Letzte Sicherung: ${formatGermanDateTime(status.lastSuccessAt)}` : 'Noch keine Sicherung übertragen.'}
+          </p>
+        )}
+        {status?.lastError && <p className="text-sm text-negative">Letzter Fehler: {status.lastError}</p>}
+      </Card>
+    </section>
   );
 }

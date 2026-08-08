@@ -1,9 +1,31 @@
 import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
-import { Amount, Card, ProgressBar } from './components';
+import { Amount, Button, Card, ProgressBar } from './components';
 import { BottomTabBar } from './BottomTabBar';
+import { buildExportArchive } from './data/backup.ts';
+import {
+  loadLastGithubBackupSuccessAt,
+  loadLastManualExportAt,
+  loadReminderDismissedAt,
+  saveLastManualExportAt,
+  saveReminderDismissedAt,
+} from './data/indexeddb.ts';
 import { getDashboard, type Dashboard as DashboardData } from './data/dashboard.ts';
 import { getReadyDb } from './data/sqlite.ts';
+import { shareOrDownload } from './shareOrDownload.ts';
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+function formatGermanDateTime(iso: string): string {
+  const date = new Date(iso);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${yyyy}, ${hh}:${min} Uhr`;
+}
 
 const MONTH_NAMES = [
   'Januar',
@@ -31,19 +53,69 @@ function formatShortDate(iso: string): string {
 }
 
 export function Dashboard() {
+  const [db, setDb] = useState<Database | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [lastGithubBackupAt, setLastGithubBackupAt] = useState<string | null>();
+
+  const [reminder, setReminder] = useState<{ lastExportAt: string | null; dismissedAt: string | null } | null>(null);
+  const [reminderExporting, setReminderExporting] = useState(false);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+
   useEffect(() => {
     getReadyDb()
-      .then((db: Database) => setData(getDashboard(db)))
+      .then((database: Database) => {
+        setDb(database);
+        setData(getDashboard(database));
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen.'));
+
+    loadLastGithubBackupSuccessAt().then((iso) => setLastGithubBackupAt(iso ?? null));
+
+    Promise.all([loadLastManualExportAt(), loadReminderDismissedAt()]).then(([lastExportAt, dismissedAt]) => {
+      setReminder({ lastExportAt: lastExportAt ?? null, dismissedAt: dismissedAt ?? null });
+    });
   }, []);
 
   const progressPct =
     data?.savings_rate.goal_cents && data.savings_rate.goal_cents > 0
       ? (data.savings_rate.achieved_cents / data.savings_rate.goal_cents) * 100
       : 0;
+
+  const isGithubBackupStale = !lastGithubBackupAt || Date.now() - new Date(lastGithubBackupAt).getTime() > SEVEN_DAYS_MS;
+
+  const showReminder =
+    reminder !== null &&
+    (!reminder.lastExportAt || Date.now() - new Date(reminder.lastExportAt).getTime() > NINETY_DAYS_MS) &&
+    (!reminder.dismissedAt || Date.now() - new Date(reminder.dismissedAt).getTime() > SEVEN_DAYS_MS);
+
+  async function handleReminderExport() {
+    if (!db) return;
+    setReminderExporting(true);
+    setReminderError(null);
+    try {
+      const { bytes, filename } = buildExportArchive(db);
+      await shareOrDownload(new Blob([bytes.slice()], { type: 'application/zip' }), filename);
+      const nowIso = new Date().toISOString();
+      await saveLastManualExportAt(nowIso);
+      setReminder((r) => ({ lastExportAt: nowIso, dismissedAt: r?.dismissedAt ?? null }));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Nutzer hat den Teilen-Dialog abgebrochen — kein Fehler.
+      } else {
+        setReminderError(err instanceof Error ? err.message : 'Export fehlgeschlagen.');
+      }
+    } finally {
+      setReminderExporting(false);
+    }
+  }
+
+  async function dismissReminder() {
+    const nowIso = new Date().toISOString();
+    await saveReminderDismissedAt(nowIso);
+    setReminder((r) => ({ lastExportAt: r?.lastExportAt ?? null, dismissedAt: nowIso }));
+  }
 
   return (
     <div
@@ -53,6 +125,26 @@ export function Dashboard() {
       <h1 className="text-2xl font-semibold">Dashboard</h1>
 
       {error && <p className="text-sm text-negative">{error}</p>}
+
+      {showReminder && (
+        <Card className="flex flex-col gap-3">
+          <p className="text-sm text-text-dim">
+            {reminder?.lastExportAt
+              ? `Letzte manuelle Sicherung: ${formatGermanDateTime(reminder.lastExportAt)}.`
+              : 'Noch keine manuelle Sicherung erstellt.'}{' '}
+            Für alle Fälle: Sicherung als Datei exportieren.
+          </p>
+          {reminderError && <p className="text-sm text-negative">{reminderError}</p>}
+          <div className="flex gap-2">
+            <Button variant="primary" disabled={!db || reminderExporting} onClick={handleReminderExport}>
+              {reminderExporting ? 'Wird erzeugt…' : 'Jetzt exportieren'}
+            </Button>
+            <Button variant="secondary" onClick={dismissReminder}>
+              Später
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {data && !data.balance.available && (
         <Card className="flex flex-col gap-2">
@@ -125,6 +217,12 @@ export function Dashboard() {
             <Amount cents={data.unrecorded_this_month_cents} size="sm" />
           </div>
         </div>
+      )}
+
+      {lastGithubBackupAt !== undefined && (
+        <p className={`text-xs ${isGithubBackupStale ? 'text-negative' : 'text-text-dim'}`}>
+          {lastGithubBackupAt ? `Letzte Sicherung: ${formatGermanDateTime(lastGithubBackupAt)}` : 'Noch keine Sicherung'}
+        </p>
       )}
 
       <BottomTabBar />

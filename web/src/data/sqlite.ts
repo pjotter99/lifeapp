@@ -3,6 +3,7 @@ import initSqlJs, { type Database } from 'sql.js';
 // Vite bundelt die .wasm-Datei und liefert sie unter einer eigenen URL aus.
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { loadPersistedDb, persistDb } from './indexeddb.ts';
+import { maybeRunGithubBackup } from './githubBackupScheduler.ts';
 import { runMigrations } from './migrate.ts';
 import { migrationFiles } from './migrationFiles.ts';
 import { runRecurringJob } from './recurringJob.ts';
@@ -54,6 +55,11 @@ export function wasLoadedFromIndexedDb(): boolean {
 export async function persist(): Promise<void> {
   const db = await getDb();
   await persistDb(db.export());
+  // Fire-and-forget: CLAUDE.md, "Nach jeder Aenderung, fruehestens aber
+  // alle 15 Minuten" — die Drossel- und Fehlerbehandlung lebt komplett in
+  // maybeRunGithubBackup (wirft nie), das hier darf keine normale
+  // Schreiboperation verzoegern oder blockieren.
+  void maybeRunGithubBackup(db).catch(() => {});
 }
 
 // Wie getDb(), aber garantiert zusaetzlich ein vollstaendig migriertes
@@ -63,8 +69,26 @@ export async function persist(): Promise<void> {
 // viele Screens getReadyDb() aufrufen. Wichtig fuer das Dashboard: es liest
 // erst, nachdem dieses Promise aufgeloest hat, bekommt also nie einen
 // Zwischenstand vor dem Job zu sehen.
+// CLAUDE.md, Abschnitt "Offline": "Der [Upload] wird nachgeholt, sobald
+// wieder Verbindung besteht." — force umgeht die 15-Minuten-Drossel gezielt
+// fuer diesen Moment, statt bis zu 15 weitere Minuten auf die naechste
+// Aenderung zu warten. Registrierung nur einmal pro Sitzung, direkt an
+// getReadyDb() gekoppelt statt an einen separaten Setup-Aufruf, den ein
+// Screen vergessen koennte.
+let onlineRetryRegistered = false;
+function registerGithubBackupOnlineRetry(): void {
+  if (onlineRetryRegistered || typeof window === 'undefined') return;
+  onlineRetryRegistered = true;
+  window.addEventListener('online', () => {
+    getReadyDb()
+      .then((db) => maybeRunGithubBackup(db, { force: true }))
+      .catch(() => {});
+  });
+}
+
 export function getReadyDb(): Promise<Database> {
   if (!readyPromise) {
+    registerGithubBackupOnlineRetry();
     readyPromise = getDb().then(async (db) => {
       const applied = runMigrations(db, migrationFiles);
       const { created } = runRecurringJob(db);

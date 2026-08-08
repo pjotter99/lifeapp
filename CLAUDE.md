@@ -471,9 +471,30 @@ Reihenfolge ist damit abgeschlossen.
   Schnappschuss davor, Rueckgaengig danach) und Link zu `/stammdaten`.
   Tab-Leiste zeigt jetzt Einstellungen statt Stammdaten; `/stammdaten`
   bleibt als Route bestehen.
+- Punkt 4, zweiter Teil (GitHub-Backup automatisch) —
+  `web/src/data/githubBackup.ts` (reine Upload-Logik: Base64-Kodierung,
+  GitHub Contents API mit GET-sha/PUT-Zyklus pro Datei, ohne IndexedDB/DOM-
+  Bezug, deshalb per Fake-Fetch testbar, 6 Tests) und
+  `githubBackupScheduler.ts` (dirty-Flag + 15-Minuten-Drossel + Fehler-
+  Persistierung ueber `indexeddb.ts`, bewusst wie `sqlite.ts` nicht von
+  Tests importiert — nur im Browser verifiziert). `persist()` (`sqlite.ts`)
+  stoesst nach jedem Schreibvorgang einen Hintergrund-Versuch an (fire-and-
+  forget, wirft nie); ein `online`-Listener (einmalig ueber `getReadyDb()`
+  registriert) umgeht die Drossel fuer einen sofortigen Nachholversuch nach
+  Verbindungsverlust. Token/Besitzer/Repo-Felder in `/einstellungen`
+  (`GithubBackupSection`), gespeichert nur in IndexedDB, "Speichern" testet
+  sofort (force). Dashboard zeigt eine unauffaellige Zeile mit dem
+  Zeitpunkt der letzten erfolgreichen Sicherung (rot ab 7 Tagen oder ganz
+  ohne) sowie die 90-Tage-Erinnerungskarte fuer den manuellen Export
+  (wegklickbar, 7 Tage Snooze) — `shareOrDownload.ts` aus Einstellungen.tsx
+  herausgezogen, weil beide Screens es jetzt brauchen. Mit echtem
+  GitHub-API-Aufruf (falscher Token) im Browser verifiziert: 401 sichtbar
+  ohne Token-Leck, Drossel greift bei der naechsten Aenderung, `online`-
+  Event loest sofort erneut aus.
 
-Noch offen: Punkt 4 Rest (GitHub-Backup automatisch), 5 (Service
-Worker/Offline), 6 (GitHub Pages).
+Damit ist Punkt 4 des Umbaus komplett abgeschlossen.
+
+Noch offen: Punkt 5 (Service Worker/Offline), 6 (GitHub Pages).
 
 ## Arbeitsweise
 
