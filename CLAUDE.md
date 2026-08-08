@@ -462,8 +462,18 @@ Reihenfolge ist damit abgeschlossen.
   Migrationen, vor der Rueckgabe der DB an Screens — das Dashboard sieht
   nie einen Zwischenstand vor dem Job. Kein `setInterval` mehr noetig
   (kein Server-Prozess, der laenger als eine Sitzung laeuft).
+- Punkt 4, erster Teil (Export/Import von Hand) — `web/src/data/backup.ts`
+  (Inhaltsuebersicht, CSV, LIESMICH.txt, ZIP-Export, Schema-Check,
+  Import-Vorschau mit injizierbarem DB-Opener), 24 Tests. Neue Abhaengigkeit
+  `fflate` fuer ZIP im Browser (Begruendung im Commit). Neuer Screen
+  `/einstellungen` (`Einstellungen.tsx`) mit Export (`navigator.share` auf
+  iOS, Download auf Desktop), Import (Vorschau vor Uebernahme, automatischer
+  Schnappschuss davor, Rueckgaengig danach) und Link zu `/stammdaten`.
+  Tab-Leiste zeigt jetzt Einstellungen statt Stammdaten; `/stammdaten`
+  bleibt als Route bestehen.
 
-Noch offen: Punkt 4 (Backup), 5 (Service Worker/Offline), 6 (GitHub Pages).
+Noch offen: Punkt 4 Rest (GitHub-Backup automatisch), 5 (Service
+Worker/Offline), 6 (GitHub Pages).
 
 ## Arbeitsweise
 

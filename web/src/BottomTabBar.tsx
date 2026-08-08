@@ -4,7 +4,7 @@ const TABS = [
   { href: '/', label: 'Dashboard' },
   { href: '/erfassen', label: 'Erfassen' },
   { href: '/auswertung', label: 'Auswertung' },
-  { href: '/stammdaten', label: 'Stammdaten' },
+  { href: '/einstellungen', label: 'Einstellungen' },
 ];
 
 export function BottomTabBar() {

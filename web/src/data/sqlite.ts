@@ -7,12 +7,22 @@ import { runMigrations } from './migrate.ts';
 import { migrationFiles } from './migrationFiles.ts';
 import { runRecurringJob } from './recurringJob.ts';
 
+let sqlJsPromise: ReturnType<typeof initSqlJs> | null = null;
+
+// Das Wasm-Modul selbst, getrennt von der aktiven App-DB gecacht — sowohl
+// getDb() als auch openDatabaseFromBytes() (Import-Vorschau) brauchen es,
+// aber nur einmal laden.
+function getSqlJs(): ReturnType<typeof initSqlJs> {
+  if (!sqlJsPromise) sqlJsPromise = initSqlJs({ locateFile: () => sqlWasmUrl });
+  return sqlJsPromise;
+}
+
 let dbPromise: Promise<Database> | null = null;
 let readyPromise: Promise<Database> | null = null;
 let loadedFromIndexedDb = false;
 
 async function initDb(): Promise<Database> {
-  const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
+  const SQL = await getSqlJs();
   const existing = await loadPersistedDb();
   loadedFromIndexedDb = existing !== null;
   return existing ? new SQL.Database(existing) : new SQL.Database();
@@ -23,6 +33,15 @@ async function initDb(): Promise<Database> {
 export function getDb(): Promise<Database> {
   if (!dbPromise) dbPromise = initDb();
   return dbPromise;
+}
+
+// Oeffnet beliebige Bytes als eigenstaendige Database-Instanz, unabhaengig
+// von der aktiven App-DB — fuer den Import-Vorschau-Schritt (backup.ts),
+// der eine hochgeladene Sicherung pruefen muss, ohne die laufende DB
+// anzufassen. Wirft, wenn die Bytes keine gueltige SQLite-Datei sind.
+export async function openDatabaseFromBytes(bytes: Uint8Array): Promise<Database> {
+  const SQL = await getSqlJs();
+  return new SQL.Database(bytes);
 }
 
 // True, sobald getDb() einmal aufgeloest hat: kam der Stand aus IndexedDB

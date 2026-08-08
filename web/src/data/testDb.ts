@@ -6,8 +6,9 @@ import type { MigrationFile } from './migrationTypes.ts';
 
 // Fuer Tests per fs geladen statt per Vites import.meta.glob
 // (migrationFiles.ts) — das waere unter "node --test" nicht lauffaehig.
-// Gleiche Dateien, gleiche Reihenfolge, nur ein anderer Ladeweg.
-function loadMigrationFilesFromDisk(): MigrationFile[] {
+// Gleiche Dateien, gleiche Reihenfolge, nur ein anderer Ladeweg. Exportiert,
+// weil backup.test.ts dieselbe Liste braucht (Schema-Kompatibilitaetscheck).
+export function loadMigrationFilesFromDisk(): MigrationFile[] {
   const dir = resolve(import.meta.dirname, '../../../migrations');
   return readdirSync(dir)
     .filter((name) => name.endsWith('.sql'))
