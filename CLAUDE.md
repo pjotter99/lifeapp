@@ -436,6 +436,25 @@ Keine Push-Benachrichtigung — auf iOS für PWAs unzuverlässig.
 
 Nach jedem Punkt committen und prüfen. Nicht mehrere Punkte zusammenfassen.
 
+### Aktueller Stand
+
+Erledigt:
+- Punkt 1 (sql.js, Migrationen 001–006, IndexedDB-Persistenz) —
+  `web/src/data/sqlite.ts`, `migrate.ts`.
+- Punkt 2: Kategorien/Konten/Buchungen als Funktionen portiert —
+  `web/src/data/{categories,accounts,transactions}.ts`, 26 Tests.
+- Punkt 2: `/erfassen` umgestellt, kein fetch mehr.
+
+Laufen noch gegen Fastify: Dashboard (`/`), Auswertung (`/auswertung`),
+Stammdaten (`/stammdaten`).
+
+Fehlende Funktionen dafür: recurring (blockiert Stammdaten), savings-goal
+(blockiert Stammdaten), `/api/dashboard`-Aggregat (blockiert Dashboard),
+`/api/summary/categories`-Aggregat (blockiert Auswertung).
+
+Noch offen: Punkt 3 (Recurring-Job auf App-Start), 4 (Backup), 5 (Service
+Worker/Offline), 6 (GitHub Pages).
+
 ## Arbeitsweise
 
 - Kleine Commits, ein Thema pro Commit.
