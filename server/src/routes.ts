@@ -53,6 +53,7 @@ interface RecurringRow {
   note: string | null;
   kind: string;
   day_of_month: number;
+  start_date: string | null;
 }
 
 interface RecurringListRow extends RecurringRow {
@@ -70,7 +71,7 @@ interface CreateRecurringBody {
   category_id?: unknown;
   kind?: unknown;
   interval?: unknown;
-  day_of_month?: unknown;
+  start_date?: unknown;
   contract_end?: unknown;
   notice_period_days?: unknown;
 }
@@ -102,26 +103,12 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Erster Termin fuer einen neuen Recurring-Eintrag: der naechste Kalendertag
-// mit diesem Tag-im-Monat, ab heute (auch wenn's heute selbst waere). Das
-// Intervall (monatlich/vierteljaehrlich/jaehrlich) bestimmt erst, wie der noch
-// nicht gebaute taegliche Job next_due NACH der ersten Buchung fortschreibt.
-function computeNextDue(dayOfMonth: number, from: Date = new Date()): string {
-  let year = from.getFullYear();
-  let month = from.getMonth();
-  const day = from.getDate();
-
-  if (dayOfMonth < day) {
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-
-  const mm = String(month + 1).padStart(2, '0');
-  const dd = String(dayOfMonth).padStart(2, '0');
-  return `${year}-${mm}-${dd}`;
+// day_of_month wird aus start_date abgeleitet, nicht eigenstaendig gesetzt —
+// beide koennten sonst auseinanderlaufen. Der recurringJob braucht day_of_month
+// nur, um next_due nach einer Buchung fortzuschreiben (advance()); die erste
+// Faelligkeit ist immer start_date selbst, keine Suche noetig.
+function dayOfMonthFromDate(dateStr: string): number {
+  return Number.parseInt(dateStr.slice(8, 10), 10);
 }
 
 export function registerRoutes(app: FastifyInstance): void {
@@ -255,15 +242,16 @@ export function registerRoutes(app: FastifyInstance): void {
     }
     const interval = body.interval;
 
-    if (
-      typeof body.day_of_month !== 'number' ||
-      !Number.isInteger(body.day_of_month) ||
-      body.day_of_month < 1 ||
-      body.day_of_month > 28
-    ) {
-      return reply.code(400).send({ error: 'day_of_month muss zwischen 1 und 28 liegen.' });
+    if (typeof body.start_date !== 'string' || !DATE_RE.test(body.start_date)) {
+      return reply.code(400).send({ error: 'start_date muss YYYY-MM-DD sein.' });
     }
-    const dayOfMonth = body.day_of_month;
+    const startDate = body.start_date;
+    const dayOfMonth = dayOfMonthFromDate(startDate);
+    if (dayOfMonth < 1 || dayOfMonth > 28) {
+      return reply
+        .code(400)
+        .send({ error: 'Der Tag im Startdatum darf nicht ueber 28 liegen (Monatstage variieren).' });
+    }
 
     let contractEnd: string | null = null;
     if (body.contract_end !== undefined && body.contract_end !== null) {
@@ -292,15 +280,18 @@ export function registerRoutes(app: FastifyInstance): void {
     // Vorzeichen konsistent mit transactions (CLAUDE.md Regel 2): Eingabe
     // positiv, gespeichert negativ ausser bei kind='income'.
     const storedAmount = kind === 'income' ? body.amount_cents : -body.amount_cents;
-    const nextDue = computeNextDue(dayOfMonth);
+    // Faellig ab start_date, nicht ab Anlagedatum. Liegt start_date in der
+    // Vergangenheit, holt der recurringJob die Perioden dazwischen automatisch
+    // nach (next_due ist sein Cursor, keine gesonderte Logik noetig).
+    const nextDue = startDate;
 
     const result = db
       .prepare(
         `INSERT INTO recurring
-           (name, amount_cents, category_id, account_id, interval, next_due, contract_end, notice_period_days, active, note, kind, day_of_month)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)`,
+           (name, amount_cents, category_id, account_id, interval, next_due, contract_end, notice_period_days, active, note, kind, day_of_month, start_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?, ?, ?)`,
       )
-      .run(name, storedAmount, category.id, accountId, interval, nextDue, contractEnd, noticePeriodDays, kind, dayOfMonth);
+      .run(name, storedAmount, category.id, accountId, interval, nextDue, contractEnd, noticePeriodDays, kind, dayOfMonth, startDate);
 
     const created = db.prepare('SELECT * FROM recurring WHERE id = ?').get(result.lastInsertRowid);
     return reply.code(201).send(created);
@@ -366,18 +357,21 @@ export function registerRoutes(app: FastifyInstance): void {
       updates.interval = body.interval;
     }
 
-    if (body.day_of_month !== undefined) {
-      if (
-        typeof body.day_of_month !== 'number' ||
-        !Number.isInteger(body.day_of_month) ||
-        body.day_of_month < 1 ||
-        body.day_of_month > 28
-      ) {
-        return reply.code(400).send({ error: 'day_of_month muss zwischen 1 und 28 liegen.' });
+    if (body.start_date !== undefined) {
+      if (typeof body.start_date !== 'string' || !DATE_RE.test(body.start_date)) {
+        return reply.code(400).send({ error: 'start_date muss YYYY-MM-DD sein.' });
       }
-      updates.day_of_month = body.day_of_month;
-      // next_due folgt dem neuen Tag-im-Monat, sonst laufen beide auseinander.
-      updates.next_due = computeNextDue(body.day_of_month);
+      const dayOfMonth = dayOfMonthFromDate(body.start_date);
+      if (dayOfMonth < 1 || dayOfMonth > 28) {
+        return reply
+          .code(400)
+          .send({ error: 'Der Tag im Startdatum darf nicht ueber 28 liegen (Monatstage variieren).' });
+      }
+      updates.start_date = body.start_date;
+      updates.day_of_month = dayOfMonth;
+      // Neuanker: next_due folgt dem neuen Startdatum, der Job holt bei
+      // Bedarf wieder nach — sonst laufen next_due und start_date auseinander.
+      updates.next_due = body.start_date;
     }
 
     if (body.contract_end !== undefined) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
 import { CategoryPicker, type Category } from './CategoryPicker';
+import { TopNav } from './TopNav';
 
 interface Account {
   id: number;
@@ -29,6 +30,7 @@ interface Recurring {
   note: string | null;
   kind: RecurringKind;
   day_of_month: number;
+  start_date: string | null;
 }
 
 interface SavingsGoal {
@@ -59,6 +61,10 @@ const INTERVAL_OPTIONS: RecurringInterval[] = ['monthly', 'quarterly', 'yearly']
 
 function centsToInputValue(cents: number): string {
   return (cents / 100).toFixed(2).replace('.', ',');
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function monthlyEquivalentCents(amountCents: number, interval: RecurringInterval): number {
@@ -102,6 +108,7 @@ export function Stammdaten() {
 
   return (
     <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-10 p-4">
+      <TopNav />
       <h1 className="text-2xl font-semibold">Stammdaten</h1>
       <AccountSection accounts={accounts} onSaved={loadAccounts} />
       <SavingsGoalSection goal={savingsGoal} onSaved={loadSavingsGoal} />
@@ -428,7 +435,7 @@ function RecurringForm({
   const [amount, setAmount] = useState(initial ? centsToInputValue(Math.abs(initial.amount_cents)) : '');
   const [kind, setKind] = useState<RecurringKind>(initial?.kind ?? 'expense');
   const [interval, setIntervalValue] = useState<RecurringInterval>(initial?.interval ?? 'monthly');
-  const [dayOfMonth, setDayOfMonth] = useState(initial ? String(initial.day_of_month) : '1');
+  const [startDate, setStartDate] = useState(initial?.start_date ?? today());
   const [contractEnd, setContractEnd] = useState(initial?.contract_end ?? '');
   const [noticePeriodDays, setNoticePeriodDays] = useState(
     initial?.notice_period_days !== null && initial?.notice_period_days !== undefined ? String(initial.notice_period_days) : '',
@@ -461,9 +468,13 @@ function RecurringForm({
       setError('Kategorie wählen.');
       return;
     }
-    const day = Number.parseInt(dayOfMonth, 10);
-    if (!Number.isInteger(day) || day < 1 || day > 28) {
-      setError('Tag im Monat muss zwischen 1 und 28 liegen.');
+    if (!startDate) {
+      setError('Startdatum wählen.');
+      return;
+    }
+    const dayOfMonth = Number.parseInt(startDate.slice(8, 10), 10);
+    if (dayOfMonth > 28) {
+      setError('Der Tag im Startdatum darf nicht über 28 liegen (Monatstage variieren).');
       return;
     }
 
@@ -473,7 +484,7 @@ function RecurringForm({
       category_id: categoryId,
       kind,
       interval,
-      day_of_month: day,
+      start_date: startDate,
     };
 
     if (contractEnd) body.contract_end = contractEnd;
@@ -553,7 +564,7 @@ function RecurringForm({
         </div>
       </div>
 
-      <Input label="Tag im Monat (1–28)" type="number" min={1} max={28} value={dayOfMonth} onChange={(e) => setDayOfMonth(e.target.value)} />
+      <Input label="Startdatum" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
 
       <Input label="Vertragsende (optional)" type="date" value={contractEnd} onChange={(e) => setContractEnd(e.target.value)} />
 

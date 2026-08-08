@@ -142,6 +142,12 @@ Sparrate) erzeugen automatisch Buchungen. Alles andere erfasst der Nutzer von Ha
 
 - Neue Spalte `recurring.kind` — `'income' | 'expense' | 'transfer'`
 - Neue Spalte `recurring.day_of_month` (1–28; höhere Werte vermeiden wegen Februar)
+- **Neue Spalte `recurring.start_date` (Migration 006).** Der Job bucht ab
+  diesem Datum, nicht ab dem Anlagedatum des Eintrags. `day_of_month` wird
+  aus `start_date` abgeleitet (Tag-Anteil), nicht mehr eigenständig gesetzt —
+  im Formular gibt es dafür kein eigenes Feld mehr. Liegt `start_date` in der
+  Vergangenheit, holt der Job die Perioden nach; `accounts.opening_date`
+  bleibt die untere Grenze, davor wird trotzdem nicht gebucht.
 - Ein Job beim Serverstart und danach einmal täglich legt fällige Buchungen an.
 - **Idempotenz zwingend:** `transactions.period TEXT` (`'YYYY-MM'`) plus
   `UNIQUE(recurring_id, period) WHERE recurring_id IS NOT NULL`.

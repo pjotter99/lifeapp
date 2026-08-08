@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
 import { CategoryPicker, type Category } from './CategoryPicker';
+import { TopNav } from './TopNav';
 import { TransactionRow, type Transaction } from './TransactionRow';
 
 interface Account {
@@ -26,6 +27,14 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isIncomeCategory(categories: Category[], categoryId: number | null): boolean {
+  if (categoryId === null) return false;
+  const cat = categories.find((c) => c.id === categoryId);
+  if (!cat) return false;
+  if (cat.parent_id === null) return cat.name === 'Einnahmen';
+  return categories.find((c) => c.id === cat.parent_id)?.name === 'Einnahmen';
+}
+
 const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
 const TOAST_DURATION_MS = 3000;
 
@@ -41,6 +50,7 @@ export function ExpenseEntry() {
   const [date, setDate] = useState(today);
   const [accountId, setAccountId] = useState<number | null>(null);
   const [topCategoryId, setTopCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,12 +100,16 @@ export function ExpenseEntry() {
   }, []);
 
   const needsAccountField = accounts.length > 1;
+  const parsedAmount = Number.parseFloat(amount.replace(',', '.'));
+  const amountValid = amount !== '' && !Number.isNaN(parsedAmount) && parsedAmount > 0;
+  const canConfirm = amountValid && selectedCategoryId !== null;
 
   function resetForm() {
     setAmount('');
     setDate(today());
     setAccountId(accounts[0]?.id ?? null);
     setTopCategoryId(null);
+    setSelectedCategoryId(null);
     setDetailsOpen(false);
   }
 
@@ -124,11 +138,14 @@ export function ExpenseEntry() {
     refreshDerivedData();
   }
 
-  async function saveWithCategory(categoryId: number) {
-    const parsed = Number.parseFloat(amount.replace(',', '.'));
-    if (!amount || Number.isNaN(parsed) || parsed <= 0) {
+  async function confirmSave() {
+    if (!amountValid) {
       setError('Erst einen Betrag eingeben.');
       amountRef.current?.focus();
+      return;
+    }
+    if (selectedCategoryId === null) {
+      setError('Kategorie waehlen.');
       return;
     }
     if (needsAccountField && accountId === null) {
@@ -140,8 +157,8 @@ export function ExpenseEntry() {
     setError(null);
     try {
       const body: Record<string, unknown> = {
-        amount_cents: Math.round(parsed * 100),
-        category_id: categoryId,
+        amount_cents: Math.round(parsedAmount * 100),
+        category_id: selectedCategoryId,
         date,
       };
       if (needsAccountField && accountId !== null) {
@@ -159,7 +176,7 @@ export function ExpenseEntry() {
       }
 
       const created: { id: number; amount_cents: number } = await res.json();
-      const categoryName = categories.find((c) => c.id === categoryId)?.name ?? '';
+      const categoryName = categories.find((c) => c.id === selectedCategoryId)?.name ?? '';
 
       resetForm();
       refreshDerivedData();
@@ -176,12 +193,35 @@ export function ExpenseEntry() {
   }
 
   function selectTopCategory(id: number) {
-    // Nochmal antippen geht zurueck zu den Oberkategorien.
+    // Nochmal antippen geht zurueck zu den Oberkategorien. Wechsel auf eine
+    // andere Oberkategorie verwirft eine schon gewaehlte Unterkategorie, die
+    // nicht dazugehoert — sonst bestaetigt man versehentlich die alte Wahl.
     setTopCategoryId((current) => (current === id ? null : id));
+    setSelectedCategoryId((current) => {
+      if (current === null) return null;
+      const parentOfCurrent = categories.find((c) => c.id === current)?.parent_id;
+      return parentOfCurrent === id ? current : null;
+    });
   }
+
+  function selectSubCategory(id: number) {
+    setSelectedCategoryId(id);
+  }
+
+  function selectFromFrequent(id: number) {
+    // Gleich behandeln wie eine manuelle Ober-/Unterkategorie-Auswahl —
+    // das Kategoriegitter klappt mit auf, konsistenter Flow statt Sonderfall.
+    setSelectedCategoryId(id);
+    setTopCategoryId(frequentCategories.find((c) => c.id === id)?.parent_id ?? null);
+  }
+
+  const previewIsIncome = isIncomeCategory(categories, selectedCategoryId);
+  const previewCents = canConfirm ? Math.round(parsedAmount * 100) * (previewIsIncome ? 1 : -1) : 0;
 
   return (
     <div className="flex min-h-svh flex-col gap-6 p-4">
+      <TopNav />
+
       {summary && (
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -220,7 +260,12 @@ export function ExpenseEntry() {
           <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Häufig</span>
           <div className="flex flex-wrap gap-2">
             {frequentCategories.map((cat) => (
-              <Chip key={cat.id} disabled={saving} onClick={() => saveWithCategory(cat.id)}>
+              <Chip
+                key={cat.id}
+                selected={cat.id === selectedCategoryId}
+                disabled={saving}
+                onClick={() => selectFromFrequent(cat.id)}
+              >
                 {cat.name}
               </Chip>
             ))}
@@ -231,10 +276,15 @@ export function ExpenseEntry() {
       <CategoryPicker
         categories={categories}
         topCategoryId={topCategoryId}
+        selectedSubId={selectedCategoryId}
         onSelectTop={selectTopCategory}
-        onSelectSub={saveWithCategory}
+        onSelectSub={selectSubCategory}
         disabled={saving}
       />
+
+      <Button variant="secondary" className="w-full" disabled={!canConfirm || saving} onClick={confirmSave}>
+        {canConfirm ? <Amount cents={previewCents} size="md" /> : 'Bestätigen'}
+      </Button>
 
       {recentTransactions.length > 0 && (
         <div className="flex flex-col gap-2">
