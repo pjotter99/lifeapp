@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card } from './components';
 import { getDb, persist, wasLoadedFromIndexedDb } from './data/sqlite';
 import { runMigrations } from './data/migrate';
+import { migrationFiles } from './data/migrationFiles';
 
 interface CategoryRow {
   id: number;
@@ -31,7 +32,7 @@ export function DbTest() {
         const loadedFromIndexedDb = wasLoadedFromIndexedDb();
 
         const migrationLog: string[] = [];
-        const appliedCount = runMigrations(db, (msg) => migrationLog.push(msg));
+        const appliedCount = runMigrations(db, migrationFiles, (msg) => migrationLog.push(msg));
         if (appliedCount > 0) await persist();
 
         const stmt = db.prepare('SELECT id, name, parent_id, sort_order FROM categories ORDER BY sort_order');
