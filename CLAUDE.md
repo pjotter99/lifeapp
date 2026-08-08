@@ -456,8 +456,14 @@ Alle vier Screens (`/`, `/erfassen`, `/auswertung`, `/stammdaten`) laufen
 jetzt vollständig lokal, kein Screen mehr gegen Fastify. Punkt 2 der
 Reihenfolge ist damit abgeschlossen.
 
-Noch offen: Punkt 3 (Recurring-Job auf App-Start), 4 (Backup), 5 (Service
-Worker/Offline), 6 (GitHub Pages).
+- Punkt 3: Recurring-Job auf sql.js portiert und an App-Start gebunden —
+  `web/src/data/recurringJob.ts`, 4 Tests (inkl. mehrfacher App-Start
+  hintereinander). Laeuft in `getReadyDb()` (`sqlite.ts`) nach den
+  Migrationen, vor der Rueckgabe der DB an Screens — das Dashboard sieht
+  nie einen Zwischenstand vor dem Job. Kein `setInterval` mehr noetig
+  (kein Server-Prozess, der laenger als eine Sitzung laeuft).
+
+Noch offen: Punkt 4 (Backup), 5 (Service Worker/Offline), 6 (GitHub Pages).
 
 ## Arbeitsweise
 

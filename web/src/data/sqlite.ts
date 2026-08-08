@@ -5,6 +5,7 @@ import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { loadPersistedDb, persistDb } from './indexeddb.ts';
 import { runMigrations } from './migrate.ts';
 import { migrationFiles } from './migrationFiles.ts';
+import { runRecurringJob } from './recurringJob.ts';
 
 let dbPromise: Promise<Database> | null = null;
 let readyPromise: Promise<Database> | null = null;
@@ -37,14 +38,18 @@ export async function persist(): Promise<void> {
 }
 
 // Wie getDb(), aber garantiert zusaetzlich ein vollstaendig migriertes
-// Schema — das ist es, was Screens tatsaechlich brauchen, um Daten zu
-// lesen/schreiben. Ebenfalls gecacht: Migrationen laufen pro Sitzung nur
-// einmal, egal wie viele Screens getReadyDb() aufrufen.
+// Schema und faellige Buchungen aus recurring — das ist es, was Screens
+// tatsaechlich brauchen, um Daten zu lesen/schreiben. Ebenfalls gecacht:
+// Migrationen und der Recurring-Job laufen pro Sitzung nur einmal, egal wie
+// viele Screens getReadyDb() aufrufen. Wichtig fuer das Dashboard: es liest
+// erst, nachdem dieses Promise aufgeloest hat, bekommt also nie einen
+// Zwischenstand vor dem Job zu sehen.
 export function getReadyDb(): Promise<Database> {
   if (!readyPromise) {
     readyPromise = getDb().then(async (db) => {
       const applied = runMigrations(db, migrationFiles);
-      if (applied > 0) await persist();
+      const { created } = runRecurringJob(db);
+      if (applied > 0 || created > 0) await persist();
       return db;
     });
   }
