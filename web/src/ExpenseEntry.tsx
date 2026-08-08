@@ -1,15 +1,18 @@
+import type { Database } from 'sql.js';
 import { useEffect, useRef, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
 import { TransactionRow, type Transaction } from './TransactionRow';
-
-interface Account {
-  id: number;
-  name: string;
-  type: string;
-  active: number;
-}
+import { getCategories, getFrequentCategories } from './data/categories.ts';
+import { getAccounts, type Account } from './data/accounts.ts';
+import {
+  createTransaction,
+  deleteTransaction as deleteTransactionRecord,
+  getMonthSummary,
+  getTransactions,
+} from './data/transactions.ts';
+import { getReadyDb, persist } from './data/sqlite.ts';
 
 interface MonthSummary {
   income_cents: number;
@@ -39,6 +42,7 @@ const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
 const TOAST_DURATION_MS = 3000;
 
 export function ExpenseEntry() {
+  const [db, setDb] = useState<Database | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [frequentCategories, setFrequentCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -57,47 +61,30 @@ export function ExpenseEntry() {
   const amountRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function loadFrequentCategories() {
-    fetch('/api/categories/frequent')
-      .then((r) => r.json())
-      .then(setFrequentCategories);
-  }
-
-  function loadSummary() {
-    fetch('/api/summary/month')
-      .then((r) => r.json())
-      .then(setSummary);
-  }
-
-  function loadRecentTransactions() {
-    fetch('/api/transactions?limit=10')
-      .then((r) => r.json())
-      .then(setRecentTransactions);
-  }
-
-  function refreshDerivedData() {
-    loadFrequentCategories();
-    loadSummary();
-    loadRecentTransactions();
-  }
-
+  // db separat von den Bildschirmdaten: erst wenn sql.js geladen und
+  // migriert ist, gibt es ueberhaupt etwas zu lesen.
   useEffect(() => {
-    fetch('/api/categories')
-      .then((r) => r.json())
-      .then(setCategories);
-    fetch('/api/accounts')
-      .then((r) => r.json())
-      .then((data: Account[]) => {
-        setAccounts(data);
-        setAccountId(data[0]?.id ?? null);
-      });
-    refreshDerivedData();
-    amountRef.current?.focus();
-
+    getReadyDb().then(setDb);
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  function refreshDerivedData(database: Database) {
+    setFrequentCategories(getFrequentCategories(database));
+    setSummary(getMonthSummary(database));
+    setRecentTransactions(getTransactions(database, 10));
+  }
+
+  useEffect(() => {
+    if (!db) return;
+    setCategories(getCategories(db));
+    const accountsData = getAccounts(db);
+    setAccounts(accountsData);
+    setAccountId(accountsData[0]?.id ?? null);
+    refreshDerivedData(db);
+    amountRef.current?.focus();
+  }, [db]);
 
   const needsAccountField = accounts.length > 1;
   const parsedAmount = Number.parseFloat(amount.replace(',', '.'));
@@ -120,25 +107,37 @@ export function ExpenseEntry() {
   }
 
   async function undoToast() {
-    if (!toast) return;
+    if (!toast || !db) return;
     const { transactionId } = toast;
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
-    await fetch(`/api/transactions/${transactionId}`, { method: 'DELETE' });
-    refreshDerivedData();
+    try {
+      deleteTransactionRecord(db, transactionId);
+      await persist();
+      refreshDerivedData(db);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Rückgängig fehlgeschlagen.');
+    }
   }
 
   async function deleteTransaction(id: number) {
+    if (!db) return;
     setOpenRowId(null);
     if (toast?.transactionId === id) {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       setToast(null);
     }
-    await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-    refreshDerivedData();
+    try {
+      deleteTransactionRecord(db, id);
+      await persist();
+      refreshDerivedData(db);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Löschen fehlgeschlagen.');
+    }
   }
 
   async function confirmSave() {
+    if (!db) return;
     if (!amountValid) {
       setError('Erst einen Betrag eingeben.');
       amountRef.current?.focus();
@@ -156,30 +155,18 @@ export function ExpenseEntry() {
     setSaving(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
+      const created = createTransaction(db, {
         amount_cents: Math.round(parsedAmount * 100),
         category_id: selectedCategoryId,
         date,
-      };
-      if (needsAccountField && accountId !== null) {
-        body.account_id = accountId;
-      }
-
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        ...(needsAccountField && accountId !== null ? { account_id: accountId } : {}),
       });
-      if (!res.ok) {
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Speichern fehlgeschlagen.');
-      }
+      await persist();
 
-      const created: { id: number; amount_cents: number } = await res.json();
       const categoryName = categories.find((c) => c.id === selectedCategoryId)?.name ?? '';
 
       resetForm();
-      refreshDerivedData();
+      refreshDerivedData(db);
       showToast({ transactionId: created.id, amountCents: created.amount_cents, categoryName });
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(10);
