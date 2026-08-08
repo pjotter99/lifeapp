@@ -444,12 +444,13 @@ Erledigt:
 - Punkt 2: Kategorien/Konten/Buchungen als Funktionen portiert —
   `web/src/data/{categories,accounts,transactions}.ts`, 26 Tests.
 - Punkt 2: `/erfassen` umgestellt, kein fetch mehr.
+- Punkt 2: recurring/savings-goal als Funktionen portiert —
+  `web/src/data/{recurring,savingsGoal}.ts`, 22 Tests.
+- Punkt 2: `/stammdaten` umgestellt, kein fetch mehr.
 
-Laufen noch gegen Fastify: Dashboard (`/`), Auswertung (`/auswertung`),
-Stammdaten (`/stammdaten`).
+Laufen noch gegen Fastify: Dashboard (`/`), Auswertung (`/auswertung`).
 
-Fehlende Funktionen dafür: recurring (blockiert Stammdaten), savings-goal
-(blockiert Stammdaten), `/api/dashboard`-Aggregat (blockiert Dashboard),
+Fehlende Funktionen dafür: `/api/dashboard`-Aggregat (blockiert Dashboard),
 `/api/summary/categories`-Aggregat (blockiert Auswertung).
 
 Noch offen: Punkt 3 (Recurring-Job auf App-Start), 4 (Backup), 5 (Service

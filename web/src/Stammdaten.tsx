@@ -1,45 +1,21 @@
+import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
 import { Amount, Button, Card, Chip, Input } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
-
-interface Account {
-  id: number;
-  name: string;
-  type: string;
-  active: number;
-  opening_balance_cents: number;
-  opening_date: string | null;
-}
-
-type RecurringKind = 'income' | 'expense' | 'transfer';
-type RecurringInterval = 'monthly' | 'quarterly' | 'yearly';
-
-interface Recurring {
-  id: number;
-  name: string;
-  amount_cents: number;
-  category_id: number;
-  category_name: string;
-  account_id: number | null;
-  interval: RecurringInterval;
-  next_due: string;
-  contract_end: string | null;
-  notice_period_days: number | null;
-  active: number;
-  note: string | null;
-  kind: RecurringKind;
-  day_of_month: number;
-  start_date: string | null;
-}
-
-interface SavingsGoal {
-  id: number;
-  mode: 'amount' | 'percent';
-  monthly_target_cents: number | null;
-  target_percent: number | null;
-  active_from: string;
-}
+import { getCategories } from './data/categories.ts';
+import { getAccounts, updateAccount, type Account } from './data/accounts.ts';
+import {
+  createRecurring,
+  getRecurring,
+  monthlyEquivalentCents,
+  updateRecurring,
+  type RecurringInterval,
+  type RecurringKind,
+  type RecurringListItem as Recurring,
+} from './data/recurring.ts';
+import { createSavingsGoal, getCurrentSavingsGoal, type SavingsGoal } from './data/savingsGoal.ts';
+import { getReadyDb, persist } from './data/sqlite.ts';
 
 const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
 const SIGNED_AMOUNT_PATTERN = /^-?\d*[.,]?\d*$/;
@@ -67,44 +43,32 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function monthlyEquivalentCents(amountCents: number, interval: RecurringInterval): number {
-  if (interval === 'quarterly') return amountCents / 3;
-  if (interval === 'yearly') return amountCents / 12;
-  return amountCents;
-}
-
 export function Stammdaten() {
+  const [db, setDb] = useState<Database | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [savingsGoal, setSavingsGoal] = useState<SavingsGoal | null>(null);
 
-  function loadAccounts() {
-    fetch('/api/accounts')
-      .then((r) => r.json())
-      .then(setAccounts);
-  }
+  useEffect(() => {
+    getReadyDb().then(setDb);
+  }, []);
 
-  function loadRecurring() {
-    fetch('/api/recurring')
-      .then((r) => r.json())
-      .then(setRecurring);
-  }
-
-  function loadSavingsGoal() {
-    fetch('/api/savings-goal/current')
-      .then((r) => r.json())
-      .then(setSavingsGoal);
+  function refreshAll(database: Database) {
+    setCategories(getCategories(database));
+    setAccounts(getAccounts(database));
+    setRecurring(getRecurring(database));
+    setSavingsGoal(getCurrentSavingsGoal(database));
   }
 
   useEffect(() => {
-    fetch('/api/categories')
-      .then((r) => r.json())
-      .then(setCategories);
-    loadAccounts();
-    loadRecurring();
-    loadSavingsGoal();
-  }, []);
+    if (!db) return;
+    refreshAll(db);
+  }, [db]);
+
+  function reload() {
+    if (db) refreshAll(db);
+  }
 
   return (
     <div
@@ -112,9 +76,9 @@ export function Stammdaten() {
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
       <h1 className="text-2xl font-semibold">Stammdaten</h1>
-      <AccountSection accounts={accounts} onSaved={loadAccounts} />
-      <SavingsGoalSection goal={savingsGoal} onSaved={loadSavingsGoal} />
-      <RecurringSection categories={categories} recurring={recurring} onChanged={loadRecurring} />
+      <AccountSection db={db} accounts={accounts} onSaved={reload} />
+      <SavingsGoalSection db={db} goal={savingsGoal} onSaved={reload} />
+      <RecurringSection db={db} categories={categories} recurring={recurring} onChanged={reload} />
       <BottomTabBar />
     </div>
   );
@@ -122,7 +86,7 @@ export function Stammdaten() {
 
 // --- Konto ------------------------------------------------------------
 
-function AccountSection({ accounts, onSaved }: { accounts: Account[]; onSaved: () => void }) {
+function AccountSection({ db, accounts, onSaved }: { db: Database | null; accounts: Account[]; onSaved: () => void }) {
   if (accounts.length === 0) return null;
 
   return (
@@ -130,20 +94,21 @@ function AccountSection({ accounts, onSaved }: { accounts: Account[]; onSaved: (
       <h2 className="text-lg font-semibold">Konto</h2>
       <div className="flex flex-col gap-4">
         {accounts.map((acc) => (
-          <AccountForm key={acc.id} account={acc} onSaved={onSaved} />
+          <AccountForm key={acc.id} db={db} account={acc} onSaved={onSaved} />
         ))}
       </div>
     </section>
   );
 }
 
-function AccountForm({ account, onSaved }: { account: Account; onSaved: () => void }) {
+function AccountForm({ db, account, onSaved }: { db: Database | null; account: Account; onSaved: () => void }) {
   const [balance, setBalance] = useState(() => centsToInputValue(account.opening_balance_cents));
   const [openingDate, setOpeningDate] = useState(account.opening_date ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    if (!db) return;
     const parsed = Number.parseFloat(balance.replace(',', '.'));
     if (balance.trim() === '' || Number.isNaN(parsed)) {
       setError('Ungültiger Betrag.');
@@ -153,18 +118,11 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
     setSaving(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { opening_balance_cents: Math.round(parsed * 100) };
-      body.opening_date = openingDate || null;
-
-      const res = await fetch(`/api/accounts/${account.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      updateAccount(db, account.id, {
+        opening_balance_cents: Math.round(parsed * 100),
+        opening_date: openingDate || null,
       });
-      if (!res.ok) {
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Speichern fehlgeschlagen.');
-      }
+      await persist();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
@@ -186,7 +144,7 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
       />
       <Input label="Startdatum" type="date" value={openingDate} onChange={(e) => setOpeningDate(e.target.value)} />
       {error && <p className="text-sm text-negative">{error}</p>}
-      <Button variant="primary" className="self-start" disabled={saving} onClick={save}>
+      <Button variant="primary" className="self-start" disabled={saving || !db} onClick={save}>
         Speichern
       </Button>
     </Card>
@@ -195,7 +153,7 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
 
 // --- Sparziel -----------------------------------------------------------
 
-function SavingsGoalSection({ goal, onSaved }: { goal: SavingsGoal | null; onSaved: () => void }) {
+function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: SavingsGoal | null; onSaved: () => void }) {
   const [mode, setMode] = useState<'amount' | 'percent'>('amount');
   const [amountValue, setAmountValue] = useState('');
   const [percentValue, setPercentValue] = useState('');
@@ -214,8 +172,11 @@ function SavingsGoalSection({ goal, onSaved }: { goal: SavingsGoal | null; onSav
   }, [goal]);
 
   async function save() {
+    if (!db) return;
     setError(null);
-    const body: Record<string, unknown> = { mode };
+
+    let parsedAmountCents: number | undefined;
+    let parsedTargetPercent: number | undefined;
 
     if (mode === 'amount') {
       const parsed = Number.parseFloat(amountValue.replace(',', '.'));
@@ -223,27 +184,24 @@ function SavingsGoalSection({ goal, onSaved }: { goal: SavingsGoal | null; onSav
         setError('Betrag eingeben.');
         return;
       }
-      body.monthly_target_cents = Math.round(parsed * 100);
+      parsedAmountCents = Math.round(parsed * 100);
     } else {
       const parsed = Number.parseFloat(percentValue.replace(',', '.'));
       if (!percentValue || Number.isNaN(parsed) || parsed <= 0) {
         setError('Prozentsatz eingeben.');
         return;
       }
-      body.target_percent = parsed;
+      parsedTargetPercent = parsed;
     }
 
     setSaving(true);
     try {
-      const res = await fetch('/api/savings-goal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      createSavingsGoal(db, {
+        mode,
+        ...(parsedAmountCents !== undefined ? { monthly_target_cents: parsedAmountCents } : {}),
+        ...(parsedTargetPercent !== undefined ? { target_percent: parsedTargetPercent } : {}),
       });
-      if (!res.ok) {
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Speichern fehlgeschlagen.');
-      }
+      await persist();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
@@ -301,7 +259,7 @@ function SavingsGoalSection({ goal, onSaved }: { goal: SavingsGoal | null; onSav
 
         {error && <p className="text-sm text-negative">{error}</p>}
 
-        <Button variant="primary" className="self-start" disabled={saving} onClick={save}>
+        <Button variant="primary" className="self-start" disabled={saving || !db} onClick={save}>
           Speichern
         </Button>
       </Card>
@@ -312,16 +270,19 @@ function SavingsGoalSection({ goal, onSaved }: { goal: SavingsGoal | null; onSav
 // --- Wiederkehrende Posten ------------------------------------------------
 
 function RecurringSection({
+  db,
   categories,
   recurring,
   onChanged,
 }: {
+  db: Database | null;
   categories: Category[];
   recurring: Recurring[];
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState<Recurring | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [endError, setEndError] = useState<string | null>(null);
 
   function openCreate() {
     setEditing(null);
@@ -339,12 +300,15 @@ function RecurringSection({
   }
 
   async function endRecurring(item: Recurring) {
-    await fetch(`/api/recurring/${item.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: 0 }),
-    });
-    onChanged();
+    if (!db) return;
+    setEndError(null);
+    try {
+      updateRecurring(db, item.id, { active: 0 });
+      await persist();
+      onChanged();
+    } catch (err) {
+      setEndError(err instanceof Error ? err.message : 'Beenden fehlgeschlagen.');
+    }
   }
 
   return (
@@ -358,8 +322,11 @@ function RecurringSection({
         )}
       </div>
 
+      {endError && <p className="text-sm text-negative">{endError}</p>}
+
       {formOpen && (
         <RecurringForm
+          db={db}
           categories={categories}
           initial={editing}
           onDone={() => {
@@ -424,11 +391,13 @@ function RecurringListItem({ item, onEdit, onEnd }: { item: Recurring; onEdit: (
 }
 
 function RecurringForm({
+  db,
   categories,
   initial,
   onDone,
   onCancel,
 }: {
+  db: Database | null;
   categories: Category[];
   initial: Recurring | null;
   onDone: () => void;
@@ -456,6 +425,7 @@ function RecurringForm({
   }
 
   async function save() {
+    if (!db) return;
     setError(null);
 
     if (!name.trim()) {
@@ -481,38 +451,31 @@ function RecurringForm({
       return;
     }
 
-    const body: Record<string, unknown> = {
-      name: name.trim(),
-      amount_cents: Math.round(parsedAmount * 100),
-      category_id: categoryId,
-      kind,
-      interval,
-      start_date: startDate,
-    };
-
-    if (contractEnd) body.contract_end = contractEnd;
-    if (noticePeriodDays) {
-      const notice = Number.parseInt(noticePeriodDays, 10);
-      if (!Number.isInteger(notice) || notice < 0) {
-        setError('Kündigungsfrist muss eine nicht-negative Ganzzahl sein.');
-        return;
-      }
-      body.notice_period_days = notice;
+    const noticePeriodDaysParsed = noticePeriodDays ? Number.parseInt(noticePeriodDays, 10) : undefined;
+    if (noticePeriodDaysParsed !== undefined && (!Number.isInteger(noticePeriodDaysParsed) || noticePeriodDaysParsed < 0)) {
+      setError('Kündigungsfrist muss eine nicht-negative Ganzzahl sein.');
+      return;
     }
 
     setSaving(true);
     try {
-      const url = initial ? `/api/recurring/${initial.id}` : '/api/recurring';
-      const method = initial ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data: { error?: string } = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Speichern fehlgeschlagen.');
+      const input = {
+        name: name.trim(),
+        amount_cents: Math.round(parsedAmount * 100),
+        category_id: categoryId,
+        kind,
+        interval,
+        start_date: startDate,
+        ...(contractEnd ? { contract_end: contractEnd } : {}),
+        ...(noticePeriodDaysParsed !== undefined ? { notice_period_days: noticePeriodDaysParsed } : {}),
+      };
+
+      if (initial) {
+        updateRecurring(db, initial.id, input);
+      } else {
+        createRecurring(db, input);
       }
+      await persist();
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
@@ -582,7 +545,7 @@ function RecurringForm({
       {error && <p className="text-sm text-negative">{error}</p>}
 
       <div className="flex gap-2">
-        <Button variant="primary" disabled={saving} onClick={save}>
+        <Button variant="primary" disabled={saving || !db} onClick={save}>
           Speichern
         </Button>
         <Button variant="secondary" onClick={onCancel}>
