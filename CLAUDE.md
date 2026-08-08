@@ -447,11 +447,12 @@ Erledigt:
 - Punkt 2: recurring/savings-goal als Funktionen portiert —
   `web/src/data/{recurring,savingsGoal}.ts`, 22 Tests.
 - Punkt 2: `/stammdaten` umgestellt, kein fetch mehr.
+- Punkt 2: `/api/dashboard`-Aggregat als Funktion portiert —
+  `web/src/data/dashboard.ts`, 12 Tests. `/` (Dashboard) umgestellt.
 
-Laufen noch gegen Fastify: Dashboard (`/`), Auswertung (`/auswertung`).
+Laufen noch gegen Fastify: Auswertung (`/auswertung`).
 
-Fehlende Funktionen dafür: `/api/dashboard`-Aggregat (blockiert Dashboard),
-`/api/summary/categories`-Aggregat (blockiert Auswertung).
+Fehlende Funktionen dafür: `/api/summary/categories`-Aggregat.
 
 Noch offen: Punkt 3 (Recurring-Job auf App-Start), 4 (Backup), 5 (Service
 Worker/Offline), 6 (GitHub Pages).

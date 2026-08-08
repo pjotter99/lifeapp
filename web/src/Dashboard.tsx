@@ -1,22 +1,9 @@
+import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
 import { Amount, Card, ProgressBar } from './components';
 import { BottomTabBar } from './BottomTabBar';
-
-interface DashboardData {
-  month: string;
-  balance: { available: boolean; balance_cents: number | null };
-  available_until_month_end_cents: number | null;
-  savings_rate: {
-    mode: 'amount' | 'percent' | null;
-    achieved_cents: number;
-    goal_cents: number | null;
-    target_percent: number | null;
-    basis_cents: number | null;
-  };
-  upcoming_fixed_costs: Array<{ id: number; name: string; amount_cents: number; due_date: string }>;
-  expenses_this_month_cents: number;
-  unrecorded_this_month_cents: number;
-}
+import { getDashboard, type Dashboard as DashboardData } from './data/dashboard.ts';
+import { getReadyDb } from './data/sqlite.ts';
 
 const MONTH_NAMES = [
   'Januar',
@@ -45,11 +32,12 @@ function formatShortDate(iso: string): string {
 
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/dashboard')
-      .then((r) => r.json())
-      .then(setData);
+    getReadyDb()
+      .then((db: Database) => setData(getDashboard(db)))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen.'));
   }, []);
 
   const progressPct =
@@ -63,6 +51,8 @@ export function Dashboard() {
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
       <h1 className="text-2xl font-semibold">Dashboard</h1>
+
+      {error && <p className="text-sm text-negative">{error}</p>}
 
       {data && !data.balance.available && (
         <Card className="flex flex-col gap-2">
