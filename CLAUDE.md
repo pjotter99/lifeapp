@@ -440,119 +440,17 @@ Nach jedem Punkt committen und prüfen. Nicht mehrere Punkte zusammenfassen.
 
 ### Aktueller Stand
 
-Erledigt:
-- Punkt 1 (sql.js, Migrationen 001–006, IndexedDB-Persistenz) —
-  `web/src/data/sqlite.ts`, `migrate.ts`.
-- Punkt 2: Kategorien/Konten/Buchungen als Funktionen portiert —
-  `web/src/data/{categories,accounts,transactions}.ts`, 26 Tests.
-- Punkt 2: `/erfassen` umgestellt, kein fetch mehr.
-- Punkt 2: recurring/savings-goal als Funktionen portiert —
-  `web/src/data/{recurring,savingsGoal}.ts`, 22 Tests.
-- Punkt 2: `/stammdaten` umgestellt, kein fetch mehr.
-- Punkt 2: `/api/dashboard`-Aggregat als Funktion portiert —
-  `web/src/data/dashboard.ts`, 12 Tests. `/` (Dashboard) umgestellt.
-- Punkt 2: `/api/summary/categories`-Aggregat als Funktion portiert —
-  `web/src/data/categorySummary.ts`, 10 Tests. `/auswertung` umgestellt.
+Umbau auf lokale Datenhaltung (sql.js + IndexedDB, kein Server) abgeschlossen.
+App läuft live auf GitHub Pages unter `/lifeapp/`. Migrationen bis 007.
+Letzte Korrekturrunde (Details-Notiz, Tastatur/Tab-Leiste, Kategorieauswahl
+Ausgabe/Einnahme/Transfer, Stammdaten Beendete-Filter/Löschen, Auswertung
+Mehrfach-Aufklappen, Feldbreiten) erledigt.
 
-Alle vier Screens (`/`, `/erfassen`, `/auswertung`, `/stammdaten`) laufen
-jetzt vollständig lokal, kein Screen mehr gegen Fastify. Punkt 2 der
-Reihenfolge ist damit abgeschlossen.
-
-- Punkt 3: Recurring-Job auf sql.js portiert und an App-Start gebunden —
-  `web/src/data/recurringJob.ts`, 4 Tests (inkl. mehrfacher App-Start
-  hintereinander). Laeuft in `getReadyDb()` (`sqlite.ts`) nach den
-  Migrationen, vor der Rueckgabe der DB an Screens — das Dashboard sieht
-  nie einen Zwischenstand vor dem Job. Kein `setInterval` mehr noetig
-  (kein Server-Prozess, der laenger als eine Sitzung laeuft).
-- Punkt 4, erster Teil (Export/Import von Hand) — `web/src/data/backup.ts`
-  (Inhaltsuebersicht, CSV, LIESMICH.txt, ZIP-Export, Schema-Check,
-  Import-Vorschau mit injizierbarem DB-Opener), 24 Tests. Neue Abhaengigkeit
-  `fflate` fuer ZIP im Browser (Begruendung im Commit). Neuer Screen
-  `/einstellungen` (`Einstellungen.tsx`) mit Export (`navigator.share` auf
-  iOS, Download auf Desktop), Import (Vorschau vor Uebernahme, automatischer
-  Schnappschuss davor, Rueckgaengig danach) und Link zu `/stammdaten`.
-  Tab-Leiste zeigt jetzt Einstellungen statt Stammdaten; `/stammdaten`
-  bleibt als Route bestehen.
-- Punkt 4, zweiter Teil (GitHub-Backup automatisch) —
-  `web/src/data/githubBackup.ts` (reine Upload-Logik: Base64-Kodierung,
-  GitHub Contents API mit GET-sha/PUT-Zyklus pro Datei, ohne IndexedDB/DOM-
-  Bezug, deshalb per Fake-Fetch testbar, 6 Tests) und
-  `githubBackupScheduler.ts` (dirty-Flag + 15-Minuten-Drossel + Fehler-
-  Persistierung ueber `indexeddb.ts`, bewusst wie `sqlite.ts` nicht von
-  Tests importiert — nur im Browser verifiziert). `persist()` (`sqlite.ts`)
-  stoesst nach jedem Schreibvorgang einen Hintergrund-Versuch an (fire-and-
-  forget, wirft nie); ein `online`-Listener (einmalig ueber `getReadyDb()`
-  registriert) umgeht die Drossel fuer einen sofortigen Nachholversuch nach
-  Verbindungsverlust. Token/Besitzer/Repo-Felder in `/einstellungen`
-  (`GithubBackupSection`), gespeichert nur in IndexedDB, "Speichern" testet
-  sofort (force). Dashboard zeigt eine unauffaellige Zeile mit dem
-  Zeitpunkt der letzten erfolgreichen Sicherung (rot ab 7 Tagen oder ganz
-  ohne) sowie die 90-Tage-Erinnerungskarte fuer den manuellen Export
-  (wegklickbar, 7 Tage Snooze) — `shareOrDownload.ts` aus Einstellungen.tsx
-  herausgezogen, weil beide Screens es jetzt brauchen. Mit echtem
-  GitHub-API-Aufruf (falscher Token) im Browser verifiziert: 401 sichtbar
-  ohne Token-Leck, Drossel greift bei der naechsten Aenderung, `online`-
-  Event loest sofort erneut aus.
-
-Damit ist Punkt 4 des Umbaus komplett abgeschlossen.
-
-- Punkt 5 (Service Worker/Offline) — `web/public/sw.js`, von Hand
-  geschrieben statt Workbox/vite-plugin-pwa: Cache-on-fetch statt einer
-  Vorab-Liste, die die von Vite gehashten Bundle-Namen kennen muesste (kein
-  zusaetzlicher Build-Schritt noetig, passt zum Rest des Projekts — siehe
-  `indexeddb.ts`s Begruendung gegen `idb`). Jede same-origin-GET-Anfrage
-  wird beim ersten Online-Laden gecacht (App-Shell inkl. sql.js-WASM,
-  entdeckt sich also selbst). Navigations-Anfragen sind Netzwerk-zuerst
-  (online immer die aktuelle index.html), alles andere Cache-zuerst (Vites
-  Datei-Hashes machen das sicher). Kein `skipWaiting()`/`clients.claim()`
-  automatisch — ein neuer Service Worker wartet, bis der Nutzer im
-  `UpdateBanner.tsx` (ueber `registerServiceWorker.ts`, `postMessage`) auf
-  "Neu laden" tippt, sonst ginge ein halb ausgefuelltes Formular verloren.
-  Registrierung nur bei `import.meta.env.PROD` (im Dev-Server wuerde ein
-  Service Worker Vites unbundelte ESM-Module/HMR durcheinanderbringen) und
-  erst nach `document.readyState === 'complete'`-Check statt blind auf das
-  "load"-Event zu warten (das ist beim React-Mount oft schon vorbei).
-  Vollstaendig im Browser verifiziert: Cache fuellt sich beim ersten Laden,
-  App startet mit gestopptem Server komplett offline (Dashboard inkl.
-  sql.js), ein simuliertes neues Deploy zeigt den Hinweis ohne die App zu
-  unterbrechen, "Neu laden" aktiviert den neuen Service Worker und raeumt
-  den alten Cache auf.
-- Punkt 6 (GitHub Pages) — `.github/workflows/deploy.yml`: Build+Test bei
-  jedem Push auf `main` (nur `web`-Workspace), Deploy ueber die offizielle
-  GitHub-Actions-Pages-Pipeline. Der Basispfad (Vite `--base`) wird aus
-  `GITHUB_REPOSITORY` abgeleitet (`/<repo>/`), nicht hartkodiert — im Repo
-  ist noch kein Remote gesetzt, der Workflow funktioniert dadurch trotzdem
-  unter jedem kuenftigen Repo-Namen unveraendert.
-
-  Beim Testen mit `vite build --base=/lifeapp-test/` fiel auf, dass
-  `main.tsx` und `BottomTabBar.tsx` `window.location.pathname` direkt gegen
-  absolute Routen wie `/erfassen` verglichen — das trifft nie unter einem
-  Basispfad-Unterverzeichnis. Neue Datei `routing.ts`
-  (`currentRoute()`/`routeHref()`, ueber `import.meta.env.BASE_URL`) faengt
-  das ab; alle internen `<a href>` (Tab-Leiste, Stammdaten-Links in
-  Dashboard/Einstellungen) laufen jetzt darueber.
-
-  GitHub Pages liefert bei einem Direktaufruf von z. B. `/lifeapp/erfassen`
-  ohne echte Datei ein 404 — `public/404.html` leitet per Redirect auf
-  `index.html?redirect=...` um (Basispfad aus dem ersten Pfad-Abschnitt
-  abgeleitet, kein hartkodierter Repo-Name), ein Inline-Script in
-  `index.html` stellt die Route per `history.replaceState` wieder her,
-  bevor `main.tsx` routet. `manifest.json` auf relative Pfade umgestellt
-  (`start_url`, Icon-`src`) — absolute `/`-Pfade zeigten sonst auf die
-  Domain-Wurzel statt auf den Unterpfad.
-
-  Lokal mit einem Wegwerf-Server verifiziert, der GitHub Pages' Verhalten
-  nachbildet (unbekannter Pfad → 404.html mit Status 404): Asset-Pfade,
-  Manifest, Tab-Leiste und der 404→Redirect→Routen-Zyklus funktionieren
-  unter `/lifeapp-test/` korrekt, `vite build`/`preview` ohne `--base`
-  weiterhin unveraendert auf `/`.
-
-  **Manuell durch den Nutzer noch zu erledigen** (kann von hier aus nicht
-  automatisiert werden): Repository auf GitHub anlegen/verbinden und dahin
-  pushen, danach einmalig unter Settings → Pages → "Build and deployment" →
-  Source auf "GitHub Actions" stellen.
-
-Damit ist der Umbau laut Reihenfolge komplett abgeschlossen.
+Offen:
+- Saldo-Abgleich gegen die Realität (`balance_checks`, siehe „Erweiterung")
+- Netto-Vermögen (Erfassung + Kurve)
+- Rentenrechner
+- Bearbeiten-Funktion für bestehende Buchungen (aktuell nur anlegen/löschen)
 
 ## Arbeitsweise
 
