@@ -58,13 +58,18 @@ export function ExpenseEntry() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // db separat von den Bildschirmdaten: erst wenn sql.js geladen und
-  // migriert ist, gibt es ueberhaupt etwas zu lesen.
+  // migriert ist, gibt es ueberhaupt etwas zu lesen. Ohne .catch() bliebe
+  // db bei einem Fehler (z. B. WASM-Laden fehlgeschlagen) stumm null —
+  // der Screen saehe dann aus wie leer geladen, ohne jeden Hinweis warum.
   useEffect(() => {
-    getReadyDb().then(setDb);
+    getReadyDb()
+      .then(setDb)
+      .catch((err: unknown) => setDbError(err instanceof Error ? err.message : 'Datenbank konnte nicht geladen werden.'));
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
@@ -207,6 +212,8 @@ export function ExpenseEntry() {
 
   return (
     <div className="flex min-h-svh flex-col gap-6 p-4" style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}>
+      {dbError && <p className="text-sm text-negative">{dbError}</p>}
+
       {summary && (
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-1">

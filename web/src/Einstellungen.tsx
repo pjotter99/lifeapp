@@ -46,6 +46,7 @@ function isStale(iso: string | null): boolean {
 
 export function Einstellungen() {
   const [db, setDb] = useState<Database | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -60,7 +61,9 @@ export function Einstellungen() {
   const [undoError, setUndoError] = useState<string | null>(null);
 
   useEffect(() => {
-    getReadyDb().then(setDb);
+    getReadyDb()
+      .then(setDb)
+      .catch((err: unknown) => setDbError(err instanceof Error ? err.message : 'Datenbank konnte nicht geladen werden.'));
     loadImportUndoSnapshot().then((snapshot) => setHasUndo(snapshot !== null));
   }, []);
 
@@ -152,6 +155,7 @@ export function Einstellungen() {
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
       <h1 className="text-2xl font-semibold">Einstellungen</h1>
+      {dbError && <p className="text-sm text-negative">{dbError}</p>}
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Stammdaten</h2>

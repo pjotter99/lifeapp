@@ -49,9 +49,12 @@ export function Stammdaten() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [savingsGoal, setSavingsGoal] = useState<SavingsGoal | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
-    getReadyDb().then(setDb);
+    getReadyDb()
+      .then(setDb)
+      .catch((err: unknown) => setDbError(err instanceof Error ? err.message : 'Datenbank konnte nicht geladen werden.'));
   }, []);
 
   function refreshAll(database: Database) {
@@ -76,6 +79,7 @@ export function Stammdaten() {
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
       <h1 className="text-2xl font-semibold">Stammdaten</h1>
+      {dbError && <p className="text-sm text-negative">{dbError}</p>}
       <AccountSection db={db} accounts={accounts} onSaved={reload} />
       <SavingsGoalSection db={db} goal={savingsGoal} onSaved={reload} />
       <RecurringSection db={db} categories={categories} recurring={recurring} onChanged={reload} />
