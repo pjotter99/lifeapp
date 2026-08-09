@@ -494,7 +494,63 @@ Reihenfolge ist damit abgeschlossen.
 
 Damit ist Punkt 4 des Umbaus komplett abgeschlossen.
 
-Noch offen: Punkt 5 (Service Worker/Offline), 6 (GitHub Pages).
+- Punkt 5 (Service Worker/Offline) — `web/public/sw.js`, von Hand
+  geschrieben statt Workbox/vite-plugin-pwa: Cache-on-fetch statt einer
+  Vorab-Liste, die die von Vite gehashten Bundle-Namen kennen muesste (kein
+  zusaetzlicher Build-Schritt noetig, passt zum Rest des Projekts — siehe
+  `indexeddb.ts`s Begruendung gegen `idb`). Jede same-origin-GET-Anfrage
+  wird beim ersten Online-Laden gecacht (App-Shell inkl. sql.js-WASM,
+  entdeckt sich also selbst). Navigations-Anfragen sind Netzwerk-zuerst
+  (online immer die aktuelle index.html), alles andere Cache-zuerst (Vites
+  Datei-Hashes machen das sicher). Kein `skipWaiting()`/`clients.claim()`
+  automatisch — ein neuer Service Worker wartet, bis der Nutzer im
+  `UpdateBanner.tsx` (ueber `registerServiceWorker.ts`, `postMessage`) auf
+  "Neu laden" tippt, sonst ginge ein halb ausgefuelltes Formular verloren.
+  Registrierung nur bei `import.meta.env.PROD` (im Dev-Server wuerde ein
+  Service Worker Vites unbundelte ESM-Module/HMR durcheinanderbringen) und
+  erst nach `document.readyState === 'complete'`-Check statt blind auf das
+  "load"-Event zu warten (das ist beim React-Mount oft schon vorbei).
+  Vollstaendig im Browser verifiziert: Cache fuellt sich beim ersten Laden,
+  App startet mit gestopptem Server komplett offline (Dashboard inkl.
+  sql.js), ein simuliertes neues Deploy zeigt den Hinweis ohne die App zu
+  unterbrechen, "Neu laden" aktiviert den neuen Service Worker und raeumt
+  den alten Cache auf.
+- Punkt 6 (GitHub Pages) — `.github/workflows/deploy.yml`: Build+Test bei
+  jedem Push auf `main` (nur `web`-Workspace), Deploy ueber die offizielle
+  GitHub-Actions-Pages-Pipeline. Der Basispfad (Vite `--base`) wird aus
+  `GITHUB_REPOSITORY` abgeleitet (`/<repo>/`), nicht hartkodiert — im Repo
+  ist noch kein Remote gesetzt, der Workflow funktioniert dadurch trotzdem
+  unter jedem kuenftigen Repo-Namen unveraendert.
+
+  Beim Testen mit `vite build --base=/lifeapp-test/` fiel auf, dass
+  `main.tsx` und `BottomTabBar.tsx` `window.location.pathname` direkt gegen
+  absolute Routen wie `/erfassen` verglichen — das trifft nie unter einem
+  Basispfad-Unterverzeichnis. Neue Datei `routing.ts`
+  (`currentRoute()`/`routeHref()`, ueber `import.meta.env.BASE_URL`) faengt
+  das ab; alle internen `<a href>` (Tab-Leiste, Stammdaten-Links in
+  Dashboard/Einstellungen) laufen jetzt darueber.
+
+  GitHub Pages liefert bei einem Direktaufruf von z. B. `/lifeapp/erfassen`
+  ohne echte Datei ein 404 — `public/404.html` leitet per Redirect auf
+  `index.html?redirect=...` um (Basispfad aus dem ersten Pfad-Abschnitt
+  abgeleitet, kein hartkodierter Repo-Name), ein Inline-Script in
+  `index.html` stellt die Route per `history.replaceState` wieder her,
+  bevor `main.tsx` routet. `manifest.json` auf relative Pfade umgestellt
+  (`start_url`, Icon-`src`) — absolute `/`-Pfade zeigten sonst auf die
+  Domain-Wurzel statt auf den Unterpfad.
+
+  Lokal mit einem Wegwerf-Server verifiziert, der GitHub Pages' Verhalten
+  nachbildet (unbekannter Pfad → 404.html mit Status 404): Asset-Pfade,
+  Manifest, Tab-Leiste und der 404→Redirect→Routen-Zyklus funktionieren
+  unter `/lifeapp-test/` korrekt, `vite build`/`preview` ohne `--base`
+  weiterhin unveraendert auf `/`.
+
+  **Manuell durch den Nutzer noch zu erledigen** (kann von hier aus nicht
+  automatisiert werden): Repository auf GitHub anlegen/verbinden und dahin
+  pushen, danach einmalig unter Settings → Pages → "Build and deployment" →
+  Source auf "GitHub Actions" stellen.
+
+Damit ist der Umbau laut Reihenfolge komplett abgeschlossen.
 
 ## Arbeitsweise
 

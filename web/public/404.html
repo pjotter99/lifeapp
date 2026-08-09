@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>lifeapp</title>
+    <script>
+      // GitHub Pages ist ein statischer Host ohne SPA-Routing: ein
+      // Direktaufruf oder Reload von z. B. /<repo>/erfassen liefert mangels
+      // echter Datei dieses 404.html aus. Der erste Pfad-Abschnitt ist dabei
+      // immer der Projekt-Basispfad (Vite "base" = Repo-Name), alles danach
+      // die eigentliche App-Route. Die Route wird als Query-String kodiert
+      // und auf die echte index.html umgeleitet, die sie beim Start wieder
+      // herstellt (siehe index.html). Kein hartkodierter Repo-Name noetig —
+      // funktioniert dadurch unveraendert unter jedem Projekt-Namen.
+      var loc = window.location;
+      var base = loc.pathname.split('/').slice(0, 2).join('/');
+      var route = loc.pathname.slice(base.length) + loc.search + loc.hash;
+      loc.replace(base + '/?redirect=' + encodeURIComponent(route));
+    </script>
+  </head>
+  <body></body>
+</html>

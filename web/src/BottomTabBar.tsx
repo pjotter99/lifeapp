@@ -1,3 +1,5 @@
+import { currentRoute, routeHref } from './routing.ts';
+
 // Ersetzt die vorlaeufige TopNav. Volle Seitenladung beim Wechsel, kein
 // Router — fuer vier feste Ziele reicht das.
 const TABS = [
@@ -8,7 +10,7 @@ const TABS = [
 ];
 
 export function BottomTabBar() {
-  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const path = typeof window !== 'undefined' ? currentRoute() : '';
 
   return (
     <nav
@@ -20,7 +22,7 @@ export function BottomTabBar() {
         return (
           <a
             key={tab.href}
-            href={tab.href}
+            href={routeHref(tab.href)}
             className={`flex flex-1 flex-col items-center justify-center text-xs ${active ? 'font-semibold text-accent' : 'text-text-dim'}`}
           >
             {tab.label}

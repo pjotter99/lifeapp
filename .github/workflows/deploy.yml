@@ -1,0 +1,59 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Nur ein Deploy gleichzeitig, aber keinen laufenden Deploy abbrechen —
+# sonst koennte eine bereits live geschaltete, halb ausgerollte Version stehen bleiben.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck --workspace=web
+      - run: npm run test --workspace=web
+
+      # Vite braucht den Basispfad als /<repo>/, da GitHub Pages ein
+      # Projekt unter https://<user>.github.io/<repo>/ ausliefert, nicht
+      # unter der Domain-Wurzel. Aus GITHUB_REPOSITORY abgeleitet statt
+      # hartkodiert — funktioniert unter jedem Repo-Namen unveraendert.
+      - name: Basispfad aus dem Repo-Namen ableiten
+        id: base
+        run: echo "path=/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_OUTPUT"
+
+      - run: npm run build --workspace=web -- --base=${{ steps.base.outputs.path }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -18,6 +18,7 @@ import {
 } from './data/indexeddb.ts';
 import { migrationFiles } from './data/migrationFiles.ts';
 import { getReadyDb, openDatabaseFromBytes } from './data/sqlite.ts';
+import { routeHref } from './routing.ts';
 import { shareOrDownload } from './shareOrDownload.ts';
 
 type ImportState = 'idle' | 'checking' | 'preview' | 'importing';
@@ -156,7 +157,7 @@ export function Einstellungen() {
         <h2 className="text-lg font-semibold">Stammdaten</h2>
         <Card className="flex items-center justify-between gap-3">
           <p className="text-sm text-text-dim">Konten, wiederkehrende Posten, Sparziel</p>
-          <a href="/stammdaten" className="text-sm font-medium text-accent underline">
+          <a href={routeHref('/stammdaten')} className="text-sm font-medium text-accent underline">
             Öffnen
           </a>
         </Card>

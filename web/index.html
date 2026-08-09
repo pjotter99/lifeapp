@@ -15,6 +15,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="lifeapp" />
     <title>lifeapp</title>
+    <script>
+      // Gegenstueck zu public/404.html: stellt die urspruenglich aufgerufene
+      // Route wieder her, bevor main.tsx anhand von window.location.pathname
+      // entscheidet, welcher Screen gerendert wird. Muss vor dem
+      // type="module"-Script unten stehen (das laedt verzoegert, dieses
+      // synchrone Inline-Script laeuft garantiert zuerst).
+      (function () {
+        var params = new URLSearchParams(window.location.search)
+        var redirect = params.get('redirect')
+        if (redirect === null) return
+        var base = window.location.pathname.replace(/\/$/, '')
+        history.replaceState(null, '', base + redirect)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

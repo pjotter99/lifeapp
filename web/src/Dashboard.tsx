@@ -12,6 +12,7 @@ import {
 } from './data/indexeddb.ts';
 import { getDashboard, type Dashboard as DashboardData } from './data/dashboard.ts';
 import { getReadyDb } from './data/sqlite.ts';
+import { routeHref } from './routing.ts';
 import { shareOrDownload } from './shareOrDownload.ts';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -151,7 +152,7 @@ export function Dashboard() {
           <p className="text-sm text-text-dim">
             Kein Startsaldo bzw. Startdatum gesetzt — der Kontostand lässt sich ohne das nicht berechnen.
           </p>
-          <a href="/stammdaten" className="text-sm font-medium text-accent underline">
+          <a href={routeHref('/stammdaten')} className="text-sm font-medium text-accent underline">
             Zu den Stammdaten
           </a>
         </Card>
