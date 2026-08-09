@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { currentRoute, routeHref } from './routing.ts';
 
 // Ersetzt die vorlaeufige TopNav. Volle Seitenladung beim Wechsel, kein
@@ -9,8 +10,42 @@ const TABS = [
   { href: '/einstellungen', label: 'Einstellungen' },
 ];
 
+// Ab wie viel kleinerem Visual Viewport (gegenueber dem Layout-Viewport)
+// eine virtuelle Tastatur angenommen wird, statt kleinerer Browser-UI-
+// Anpassungen (Adressleiste ein-/ausblenden etc.) — eine Tastatur nimmt
+// deutlich mehr als 150px ein.
+const KEYBOARD_HEIGHT_THRESHOLD = 150;
+
+// position:fixed haengt auf iOS bei offener Tastatur am Layout-Viewport,
+// nicht am sichtbaren (Visual-)Viewport — die Leiste "schwebt" dadurch
+// mitten im Bild statt am unteren Rand zu bleiben. Statt die Position per
+// VisualViewport-Offset staendig nachzuziehen (fehleranfaellig bei Scroll/
+// Rotation), wird die Leiste waehrend offener Tastatur einfach ausgeblendet
+// — der Nutzer tippt ohnehin gerade in ein Feld, nicht auf einen Tab.
+function useKeyboardOpen(): boolean {
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return; // kein VisualViewport-Support: Leiste bleibt immer sichtbar
+
+    function update() {
+      setKeyboardOpen(window.innerHeight - viewport!.height > KEYBOARD_HEIGHT_THRESHOLD);
+    }
+
+    update();
+    viewport.addEventListener('resize', update);
+    return () => viewport.removeEventListener('resize', update);
+  }, []);
+
+  return keyboardOpen;
+}
+
 export function BottomTabBar() {
   const path = typeof window !== 'undefined' ? currentRoute() : '';
+  const keyboardOpen = useKeyboardOpen();
+
+  if (keyboardOpen) return null;
 
   return (
     <nav

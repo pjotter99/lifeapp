@@ -40,6 +40,7 @@ export interface CreateTransactionInput {
   category_id: number;
   account_id?: number;
   date?: string;
+  note?: string;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -149,13 +150,14 @@ export function createTransaction(db: Database, input: CreateTransactionInput): 
   // Vorzeichen: Eingabe ist immer positiv. Gespeichert wird negativ,
   // ausser die Kategorie gehoert zu "Einnahmen".
   const storedAmount = isIncome ? input.amount_cents : -input.amount_cents;
+  const note = input.note?.trim() || null;
 
   execRun(
     db,
     `INSERT INTO transactions
-       (date, amount_cents, category_id, account_id, source, source_hash, category_locked, recurring_id, is_transfer)
-     VALUES (?, ?, ?, ?, 'manual', NULL, 1, NULL, ?)`,
-    [date, storedAmount, input.category_id, accountId, isTransfer ? 1 : 0],
+       (date, amount_cents, category_id, account_id, note, source, source_hash, category_locked, recurring_id, is_transfer)
+     VALUES (?, ?, ?, ?, ?, 'manual', NULL, 1, NULL, ?)`,
+    [date, storedAmount, input.category_id, accountId, note, isTransfer ? 1 : 0],
   );
 
   return queryOne<Transaction>(db, 'SELECT * FROM transactions WHERE id = ?', [lastInsertRowId(db)])!;

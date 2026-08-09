@@ -4,7 +4,7 @@ import { Amount, Button, Card, Chip, Input } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
 import { TransactionRow, type Transaction } from './TransactionRow';
-import { getCategories, getFrequentCategories } from './data/categories.ts';
+import { getCategories } from './data/categories.ts';
 import { getAccounts, type Account } from './data/accounts.ts';
 import {
   createTransaction,
@@ -26,16 +26,25 @@ interface Toast {
   categoryName: string;
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+type EntryKind = 'expense' | 'income' | 'transfer';
+
+const KIND_LABELS: Record<EntryKind, string> = {
+  expense: 'Ausgabe',
+  income: 'Einnahme',
+  transfer: 'Transfer',
+};
+const KIND_OPTIONS: EntryKind[] = ['expense', 'income', 'transfer'];
+
+// Welche Art eine Oberkategorie ist, anhand ihres Namens — "Einnahmen" und
+// "Transfer" sind je genau eine Oberkategorie, alles andere ist eine Ausgabe.
+function topCategoryKind(name: string): EntryKind {
+  if (name === 'Einnahmen') return 'income';
+  if (name === 'Transfer') return 'transfer';
+  return 'expense';
 }
 
-function isIncomeCategory(categories: Category[], categoryId: number | null): boolean {
-  if (categoryId === null) return false;
-  const cat = categories.find((c) => c.id === categoryId);
-  if (!cat) return false;
-  if (cat.parent_id === null) return cat.name === 'Einnahmen';
-  return categories.find((c) => c.id === cat.parent_id)?.name === 'Einnahmen';
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
@@ -44,7 +53,6 @@ const TOAST_DURATION_MS = 3000;
 export function ExpenseEntry() {
   const [db, setDb] = useState<Database | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [frequentCategories, setFrequentCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -52,7 +60,9 @@ export function ExpenseEntry() {
   const [toast, setToast] = useState<Toast | null>(null);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today);
+  const [note, setNote] = useState('');
   const [accountId, setAccountId] = useState<number | null>(null);
+  const [kind, setKind] = useState<EntryKind>('expense');
   const [topCategoryId, setTopCategoryId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -76,7 +86,6 @@ export function ExpenseEntry() {
   }, []);
 
   function refreshDerivedData(database: Database) {
-    setFrequentCategories(getFrequentCategories(database));
     setSummary(getMonthSummary(database));
     setRecentTransactions(getTransactions(database, 10));
   }
@@ -96,10 +105,20 @@ export function ExpenseEntry() {
   const amountValid = amount !== '' && !Number.isNaN(parsedAmount) && parsedAmount > 0;
   const canConfirm = amountValid && selectedCategoryId !== null;
 
+  // Nur Ober- und Unterkategorien der gewaehlten Art — ersetzt das
+  // gemischte Gitter mit allen zehn Oberkategorien.
+  const categoriesForKind = categories.filter((c) => {
+    if (c.parent_id === null) return topCategoryKind(c.name) === kind;
+    const parent = categories.find((p) => p.id === c.parent_id);
+    return parent !== undefined && topCategoryKind(parent.name) === kind;
+  });
+
   function resetForm() {
     setAmount('');
     setDate(today());
+    setNote('');
     setAccountId(accounts[0]?.id ?? null);
+    setKind('expense');
     setTopCategoryId(null);
     setSelectedCategoryId(null);
     setDetailsOpen(false);
@@ -164,6 +183,7 @@ export function ExpenseEntry() {
         amount_cents: Math.round(parsedAmount * 100),
         category_id: selectedCategoryId,
         date,
+        ...(note.trim() ? { note: note.trim() } : {}),
         ...(needsAccountField && accountId !== null ? { account_id: accountId } : {}),
       });
       await persist();
@@ -184,6 +204,12 @@ export function ExpenseEntry() {
     }
   }
 
+  function selectKind(next: EntryKind) {
+    setKind(next);
+    setTopCategoryId(null);
+    setSelectedCategoryId(null);
+  }
+
   function selectTopCategory(id: number) {
     // Nochmal antippen geht zurueck zu den Oberkategorien. Wechsel auf eine
     // andere Oberkategorie verwirft eine schon gewaehlte Unterkategorie, die
@@ -200,15 +226,7 @@ export function ExpenseEntry() {
     setSelectedCategoryId(id);
   }
 
-  function selectFromFrequent(id: number) {
-    // Gleich behandeln wie eine manuelle Ober-/Unterkategorie-Auswahl —
-    // das Kategoriegitter klappt mit auf, konsistenter Flow statt Sonderfall.
-    setSelectedCategoryId(id);
-    setTopCategoryId(frequentCategories.find((c) => c.id === id)?.parent_id ?? null);
-  }
-
-  const previewIsIncome = isIncomeCategory(categories, selectedCategoryId);
-  const previewCents = canConfirm ? Math.round(parsedAmount * 100) * (previewIsIncome ? 1 : -1) : 0;
+  const previewCents = canConfirm ? Math.round(parsedAmount * 100) * (kind === 'income' ? 1 : -1) : 0;
 
   return (
     <div className="flex min-h-svh flex-col gap-6 p-4" style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}>
@@ -247,26 +265,16 @@ export function ExpenseEntry() {
         {error && <p className="mt-2 text-center text-sm text-negative">{error}</p>}
       </Card>
 
-      {frequentCategories.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Häufig</span>
-          <div className="flex flex-wrap gap-2">
-            {frequentCategories.map((cat) => (
-              <Chip
-                key={cat.id}
-                selected={cat.id === selectedCategoryId}
-                disabled={saving}
-                onClick={() => selectFromFrequent(cat.id)}
-              >
-                {cat.name}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="flex gap-2">
+        {KIND_OPTIONS.map((k) => (
+          <Chip key={k} selected={kind === k} disabled={saving} onClick={() => selectKind(k)}>
+            {KIND_LABELS[k]}
+          </Chip>
+        ))}
+      </div>
 
       <CategoryPicker
-        categories={categories}
+        categories={categoriesForKind}
         topCategoryId={topCategoryId}
         selectedSubId={selectedCategoryId}
         onSelectTop={selectTopCategory}
@@ -303,6 +311,7 @@ export function ExpenseEntry() {
       {detailsOpen && (
         <div className="flex flex-col gap-4">
           <Input label="Datum" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input label="Notiz" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
 
           {needsAccountField && (
             <div className="flex flex-col gap-1.5 text-sm text-text-dim">

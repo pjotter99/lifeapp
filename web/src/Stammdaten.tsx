@@ -7,9 +7,12 @@ import { getCategories } from './data/categories.ts';
 import { getAccounts, updateAccount, type Account } from './data/accounts.ts';
 import {
   createRecurring,
+  deleteRecurring,
   getRecurring,
+  getRecurringDeleteImpact,
   monthlyEquivalentCents,
   updateRecurring,
+  type RecurringDeleteImpact,
   type RecurringInterval,
   type RecurringKind,
   type RecurringListItem as Recurring,
@@ -140,6 +143,7 @@ function AccountForm({ db, account, onSaved }: { db: Database | null; account: A
       <span className="font-medium">{account.name}</span>
       <Input
         label="Startsaldo"
+        fieldWidth="auto"
         value={balance}
         inputMode="decimal"
         onChange={(e) => {
@@ -244,6 +248,7 @@ function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: 
         {mode === 'amount' ? (
           <Input
             label="Monatliches Ziel"
+            fieldWidth="auto"
             value={amountValue}
             inputMode="decimal"
             onChange={(e) => {
@@ -253,6 +258,7 @@ function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: 
         ) : (
           <Input
             label="Anteil vom regulären Nettogehalt (%)"
+            fieldWidth="auto"
             value={percentValue}
             inputMode="decimal"
             onChange={(e) => {
@@ -273,6 +279,11 @@ function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: 
 
 // --- Wiederkehrende Posten ------------------------------------------------
 
+interface PendingDelete {
+  item: Recurring;
+  impact: RecurringDeleteImpact;
+}
+
 function RecurringSection({
   db,
   categories,
@@ -287,6 +298,10 @@ function RecurringSection({
   const [editing, setEditing] = useState<Recurring | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
+  const [showEnded, setShowEnded] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function openCreate() {
     setEditing(null);
@@ -315,6 +330,38 @@ function RecurringSection({
     }
   }
 
+  function askDelete(item: Recurring) {
+    if (!db) return;
+    setDeleteError(null);
+    setPendingDelete({ item, impact: getRecurringDeleteImpact(db, item.id) });
+  }
+
+  function cancelDelete() {
+    setPendingDelete(null);
+  }
+
+  async function confirmDelete() {
+    if (!db || !pendingDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      deleteRecurring(db, pendingDelete.item.id);
+      await persist();
+      setPendingDelete(null);
+      onChanged();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Löschen fehlgeschlagen.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function endInsteadOfDelete() {
+    if (!pendingDelete) return;
+    await endRecurring(pendingDelete.item);
+    setPendingDelete(null);
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
@@ -325,6 +372,10 @@ function RecurringSection({
           </Button>
         )}
       </div>
+
+      <Chip selected={showEnded} onClick={() => setShowEnded((v) => !v)} className="self-start">
+        Beendete anzeigen
+      </Chip>
 
       {endError && <p className="text-sm text-negative">{endError}</p>}
 
@@ -341,8 +392,41 @@ function RecurringSection({
         />
       )}
 
+      {pendingDelete && (
+        <Card className="flex flex-col gap-3">
+          <p className="text-sm font-medium">"{pendingDelete.item.name}" endgültig löschen?</p>
+          <p className="flex items-center gap-2 text-sm text-text-dim">
+            {pendingDelete.impact.transactionCount === 0 ? (
+              <span>Keine erzeugten Buchungen betroffen.</span>
+            ) : (
+              <span className="flex items-center gap-2">
+                {pendingDelete.impact.transactionCount} davon erzeugte{' '}
+                {pendingDelete.impact.transactionCount === 1 ? 'Buchung wird' : 'Buchungen werden'} mitgelöscht, Summe{' '}
+                <Amount cents={pendingDelete.impact.sumCents} size="sm" />.
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-text-dim">
+            Das kann nicht rückgängig gemacht werden. Von Hand erfasste Buchungen sind nie betroffen. Alternative: „Beenden"
+            stoppt den Posten, ohne bereits erzeugte Buchungen zu löschen.
+          </p>
+          {deleteError && <p className="text-sm text-negative">{deleteError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="danger" disabled={deleting} onClick={confirmDelete}>
+              {deleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
+            </Button>
+            <Button variant="secondary" disabled={deleting} onClick={endInsteadOfDelete}>
+              Stattdessen beenden
+            </Button>
+            <Button variant="secondary" disabled={deleting} onClick={cancelDelete}>
+              Abbrechen
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {KIND_OPTIONS.map((kind) => {
-        const items = recurring.filter((r) => r.kind === kind);
+        const items = recurring.filter((r) => r.kind === kind && (showEnded || r.active === 1));
         if (items.length === 0) return null;
 
         const monthlySumCents = items
@@ -357,7 +441,13 @@ function RecurringSection({
             </div>
             <div className="flex flex-col gap-2">
               {items.map((item) => (
-                <RecurringListItem key={item.id} item={item} onEdit={() => openEdit(item)} onEnd={() => endRecurring(item)} />
+                <RecurringListItem
+                  key={item.id}
+                  item={item}
+                  onEdit={() => openEdit(item)}
+                  onEnd={() => endRecurring(item)}
+                  onDelete={() => askDelete(item)}
+                />
               ))}
             </div>
           </div>
@@ -367,7 +457,17 @@ function RecurringSection({
   );
 }
 
-function RecurringListItem({ item, onEdit, onEnd }: { item: Recurring; onEdit: () => void; onEnd: () => void }) {
+function RecurringListItem({
+  item,
+  onEdit,
+  onEnd,
+  onDelete,
+}: {
+  item: Recurring;
+  onEdit: () => void;
+  onEnd: () => void;
+  onDelete: () => void;
+}) {
   return (
     <Card surface="surface-2" className={`flex flex-col gap-2 ${item.active === 1 ? '' : 'opacity-50'}`}>
       <div className="flex items-center justify-between gap-3">
@@ -388,6 +488,9 @@ function RecurringListItem({ item, onEdit, onEnd }: { item: Recurring; onEdit: (
               Beenden
             </Button>
           )}
+          <Button variant="danger" onClick={onDelete}>
+            Löschen
+          </Button>
         </div>
       </div>
     </Card>
@@ -494,6 +597,7 @@ function RecurringForm({
 
       <Input
         label="Betrag"
+        fieldWidth="auto"
         value={amount}
         inputMode="decimal"
         onChange={(e) => {

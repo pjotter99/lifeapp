@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { Database } from 'sql.js';
 import { getCategories, type Category } from './categories.ts';
-import { createRecurring, getRecurring, updateRecurring } from './recurring.ts';
+import { createRecurring, deleteRecurring, getRecurring, getRecurringDeleteImpact, updateRecurring } from './recurring.ts';
+import { execRun } from './sqlHelpers.ts';
 import { createTestDb } from './testDb.ts';
+import { createTransaction, getTransactions } from './transactions.ts';
 
 function findCategory(categories: Category[], name: string, parentName?: string): Category {
   const match = categories.find((c) => {
@@ -211,4 +214,85 @@ test('updateRecurring wirft ohne Aenderungen', async () => {
   });
 
   assert.throws(() => updateRecurring(db, created.id, {}), /Keine Aenderungen/);
+});
+
+// --- getRecurringDeleteImpact / deleteRecurring --------------------------
+
+// Simuliert eine vom recurringJob erzeugte Buchung (die Datenfunktion
+// createTransaction setzt nie recurring_id/period — das macht nur der Job).
+function insertGeneratedTransaction(db: Database, recurringId: number, categoryId: number, amountCents: number, date: string): void {
+  execRun(
+    db,
+    `INSERT INTO transactions
+       (date, amount_cents, category_id, account_id, source, source_hash, category_locked, recurring_id, period, is_transfer)
+     VALUES (?, ?, ?, 1, 'manual', NULL, 1, ?, ?, 0)`,
+    [date, amountCents, categoryId, recurringId, date.slice(0, 7)],
+  );
+}
+
+test('getRecurringDeleteImpact ist 0/0 ohne erzeugte Buchungen', async () => {
+  const db = await createTestDb();
+  const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
+  const created = createRecurring(db, {
+    name: 'Strom',
+    amount_cents: 6000,
+    category_id: strom.id,
+    kind: 'expense',
+    interval: 'monthly',
+    start_date: '2026-01-01',
+  });
+
+  assert.deepEqual(getRecurringDeleteImpact(db, created.id), { transactionCount: 0, sumCents: 0 });
+});
+
+test('getRecurringDeleteImpact zaehlt nur Buchungen dieses Postens', async () => {
+  const db = await createTestDb();
+  const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
+  const created = createRecurring(db, {
+    name: 'Strom',
+    amount_cents: 6000,
+    category_id: strom.id,
+    kind: 'expense',
+    interval: 'monthly',
+    start_date: '2026-01-01',
+  });
+  insertGeneratedTransaction(db, created.id, strom.id, -6000, '2026-01-01');
+  insertGeneratedTransaction(db, created.id, strom.id, -6000, '2026-02-01');
+  // Von Hand erfasste Buchung in derselben Kategorie darf nicht mitgezaehlt werden.
+  createTransaction(db, { amount_cents: 1234, category_id: strom.id, date: '2026-03-01' });
+
+  const impact = getRecurringDeleteImpact(db, created.id);
+
+  assert.equal(impact.transactionCount, 2);
+  assert.equal(impact.sumCents, -12000);
+});
+
+test('deleteRecurring entfernt den Posten und seine erzeugten Buchungen', async () => {
+  const db = await createTestDb();
+  const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
+  const created = createRecurring(db, {
+    name: 'Strom',
+    amount_cents: 6000,
+    category_id: strom.id,
+    kind: 'expense',
+    interval: 'monthly',
+    start_date: '2026-01-01',
+  });
+  insertGeneratedTransaction(db, created.id, strom.id, -6000, '2026-01-01');
+  const manual = createTransaction(db, { amount_cents: 1234, category_id: strom.id, date: '2026-03-01' });
+
+  deleteRecurring(db, created.id);
+
+  assert.deepEqual(getRecurring(db), []);
+  const remaining = getTransactions(db, 100);
+  assert.deepEqual(
+    remaining.map((t) => t.id),
+    [manual.id],
+    'von Hand erfasste Buchung bleibt erhalten, die erzeugte ist weg',
+  );
+});
+
+test('deleteRecurring wirft bei unbekannter id', async () => {
+  const db = await createTestDb();
+  assert.throws(() => deleteRecurring(db, 999999), /Nicht gefunden/);
 });

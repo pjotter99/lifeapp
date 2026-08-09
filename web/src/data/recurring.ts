@@ -276,3 +276,42 @@ export function updateRecurring(db: Database, id: number, input: UpdateRecurring
     [id],
   )!;
 }
+
+export interface RecurringDeleteImpact {
+  transactionCount: number;
+  sumCents: number;
+}
+
+// Vorschau vor dem Loeschen: wie viele Buchungen und welche Summe waeren
+// betroffen. Nur Buchungen mit recurring_id = id — von Hand erfasste
+// Buchungen (recurring_id IS NULL) tauchen hier nie auf.
+export function getRecurringDeleteImpact(db: Database, id: number): RecurringDeleteImpact {
+  const row = queryOne<{ count: number; sum: number }>(
+    db,
+    'SELECT COUNT(*) AS count, COALESCE(SUM(amount_cents), 0) AS sum FROM transactions WHERE recurring_id = ?',
+    [id],
+  )!;
+  return { transactionCount: row.count, sumCents: row.sum };
+}
+
+// Loescht den wiederkehrenden Posten samt aller von ihm erzeugten Buchungen
+// (recurring_id = id) — von Hand erfasste Buchungen sind durch die WHERE-
+// Klausel nie betroffen. Beenden (active=0 via updateRecurring) bleibt der
+// Normalfall; das hier ist der explizite, unwiderrufliche Fall, den der
+// Screen erst nach einer Bestaetigung mit Anzahl+Summe aufruft.
+export function deleteRecurring(db: Database, id: number): void {
+  const existing = queryOne<{ id: number }>(db, 'SELECT id FROM recurring WHERE id = ?', [id]);
+  if (!existing) {
+    throw new Error('Nicht gefunden.');
+  }
+
+  db.exec('BEGIN');
+  try {
+    execRun(db, 'DELETE FROM transactions WHERE recurring_id = ?', [id]);
+    execRun(db, 'DELETE FROM recurring WHERE id = ?', [id]);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}

@@ -118,10 +118,11 @@ statutory_pension_cents (nullable), pension_start_age
 
   **Bekannte Abweichung:** Die Kategorie-Auswahl ist real dreistufig (Betrag →
   Oberkategorie → Unterkategorie), weil das Datenmodell zweistufige Kategorien
-  hat und jede Buchung eine Unterkategorie braucht. Die „Häufig"-Zeile über dem
-  Kategoriegitter (die fünf meistgenutzten Unterkategorien der letzten 60 Tage,
-  ein Tap speichert direkt) ist der Schnellweg, der die zwei Taps für die
-  üblichen Fälle wiederherstellt. Ist die Historie leer, entfällt die Zeile.
+  hat und jede Buchung eine Unterkategorie braucht. Ein Umschalter Ausgabe/
+  Einnahme/Transfer über dem Kategoriegitter (Ausgabe ist Standard) filtert
+  die Oberkategorien auf die gewählte Art — im ueblichen Ausgaben-Fall sieht
+  man nur die acht Ausgaben-Oberkategorien statt aller zehn, das haelt den
+  dritten Tap so klein wie moeglich, ersetzt aber nicht die Notwendigkeit.
 - Mobile first. Der Desktop ist der Zweitfall.
 - Keine Modals für Kernfunktionen.
 
@@ -213,7 +214,8 @@ stehen.
 `accounts.opening_balance_cents` und `accounts.opening_date`.
 Kontostand = opening_balance + Summe aller Buchungen ab opening_date.
 
-### Kategorienbaum (Migration 004 ersetzt den Seed aus 001, Migration 005 ergänzt Bargeld)
+### Kategorienbaum (Migration 004 ersetzt den Seed aus 001, Migration 005 ergänzt Bargeld,
+Migration 007 ergänzt Online Shopping)
 
 ```
 Einnahmen        Gehalt · Sonderzahlung · Steuererstattung · Sonstiges
@@ -223,7 +225,7 @@ Lebensmittel     Einkauf · Essen gehen
 Mobilität        Benzin · Kfz-Steuer · Kfz-Versicherung ·
                  Kfz-Instandhaltung · ÖPNV
 Persönlich       Beauty · Kleidung · Geschenke · Handy ·
-                 Mitgliedschaften
+                 Mitgliedschaften · Online Shopping
 Freizeit         Feiern · Sonstiges
 Versicherungen   Haftpflicht · Hausrat · BU
 Kredite          Sonstiges

@@ -55,11 +55,13 @@ export function Auswertung() {
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<CategorySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expandedTopId, setExpandedTopId] = useState<number | null>(null);
+  // Set statt einzelner id: mehrere Oberkategorien sollen gleichzeitig
+  // aufklappbar sein, nicht nur eine.
+  const [expandedTopIds, setExpandedTopIds] = useState<Set<number>>(new Set());
   const [expandedSubId, setExpandedSubId] = useState<number | null>(null);
 
   useEffect(() => {
-    setExpandedTopId(null);
+    setExpandedTopIds(new Set());
     setExpandedSubId(null);
     setError(null);
     getReadyDb()
@@ -68,7 +70,12 @@ export function Auswertung() {
   }, [month]);
 
   function toggleTop(id: number) {
-    setExpandedTopId((current) => (current === id ? null : id));
+    setExpandedTopIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
     setExpandedSubId(null);
   }
 
@@ -128,7 +135,7 @@ export function Auswertung() {
                   </button>
                   <ProgressBar value={percent} color={color} />
 
-                  {expandedTopId === cat.id && (
+                  {expandedTopIds.has(cat.id) && (
                     <div className="flex flex-col gap-2 border-l border-border pl-4">
                       {cat.subcategories.map((sub) => (
                         <div key={sub.id} className="flex flex-col gap-2">

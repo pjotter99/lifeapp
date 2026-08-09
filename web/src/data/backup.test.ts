@@ -48,7 +48,7 @@ test('getContentOverview ist leer ohne Daten', async () => {
   assert.equal(overview.incomeCents, 0);
   assert.equal(overview.expenseCents, 0);
   assert.equal(overview.tableCounts.accounts, 1, 'Migration 003 seedet ein Konto');
-  assert.equal(overview.tableCounts.categories, 42);
+  assert.equal(overview.tableCounts.categories, 43);
 });
 
 test('getContentOverview summiert Einnahmen/Ausgaben ueber alle Monate, ohne Transfers', async () => {
@@ -105,7 +105,7 @@ test('buildReadme enthaelt Erstellungsdatum, Version, Schema-Version und Tabelle
 
   assert.match(readme, /Erstellt am:\s+2026-08-08 14:32/);
   assert.match(readme, /App-Version:\s+\d+\.\d+\.\d+/);
-  assert.match(readme, /Schema-Version:\s+6 \(6 Migrationen angewendet\)/);
+  assert.match(readme, /Schema-Version:\s+7 \(7 Migrationen angewendet\)/);
   assert.match(readme, /accounts\s+1/);
   assert.match(readme, /Zeitraum der Buchungen: - bis -/);
 });

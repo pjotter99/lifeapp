@@ -82,6 +82,29 @@ test('createTransaction respektiert ein explizit angegebenes date', async () => 
   assert.equal(tx.date, '2026-03-15');
 });
 
+// Spiegelt das Notiz-Feld: getrimmt gespeichert, leer/whitespace wird null.
+test('createTransaction speichert eine Notiz getrimmt', async () => {
+  const db = await createTestDb();
+  const categories = getCategories(db);
+  const einkauf = findCategory(categories, 'Einkauf', 'Lebensmittel');
+
+  const tx = createTransaction(db, { amount_cents: 100, category_id: einkauf.id, note: '  Wocheneinkauf  ' });
+
+  assert.equal(tx.note, 'Wocheneinkauf');
+});
+
+test('createTransaction speichert eine leere oder nur aus Leerzeichen bestehende Notiz als null', async () => {
+  const db = await createTestDb();
+  const categories = getCategories(db);
+  const einkauf = findCategory(categories, 'Einkauf', 'Lebensmittel');
+
+  const withoutNote = createTransaction(db, { amount_cents: 100, category_id: einkauf.id });
+  const withBlankNote = createTransaction(db, { amount_cents: 100, category_id: einkauf.id, note: '   ' });
+
+  assert.equal(withoutNote.note, null);
+  assert.equal(withBlankNote.note, null);
+});
+
 test('createTransaction wirft bei nicht-positivem Betrag', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
