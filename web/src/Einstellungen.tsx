@@ -276,6 +276,16 @@ function GithubBackupSection({ db }: { db: Database | null }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Safari fuellt Formularfelder (v. a. type="password") bei Autofill
+  // teils nur ueber die native value-Property, ohne ein input/change-
+  // Event auszuloesen — der token/owner/repo-State bliebe dann leer, obwohl
+  // die Felder sichtbar ausgefuellt sind, und "Speichern" wuerde faelschlich
+  // "werden benoetigt" melden. Die Refs lesen beim Speichern den echten
+  // DOM-Wert, unabhaengig davon, ob ein Event gefeuert hat.
+  const tokenRef = useRef<HTMLInputElement>(null);
+  const ownerRef = useRef<HTMLInputElement>(null);
+  const repoRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     Promise.all([loadGithubSettings(), loadLastGithubBackupSuccessAt(), loadGithubBackupError()]).then(
       ([settings, lastSuccessAt, lastError]) => {
@@ -297,7 +307,18 @@ function GithubBackupSection({ db }: { db: Database | null }) {
 
   async function handleSave() {
     if (!db) return;
-    const trimmed: GithubSettings = { token: token.trim(), owner: owner.trim(), repo: repo.trim() };
+    const trimmed: GithubSettings = {
+      token: (tokenRef.current?.value ?? token).trim(),
+      owner: (ownerRef.current?.value ?? owner).trim(),
+      repo: (repoRef.current?.value ?? repo).trim(),
+    };
+    // State mit dem tatsaechlichen DOM-Wert angleichen — sonst wuerde ein
+    // spaeterer Re-Render (formError/saving/status) die kontrollierten
+    // Felder auf den alten (leeren) State zurueckfallen lassen und ein per
+    // Autofill sichtbar ausgefuelltes Feld optisch wieder leeren.
+    setToken(trimmed.token);
+    setOwner(trimmed.owner);
+    setRepo(trimmed.repo);
     if (!trimmed.token || !trimmed.owner || !trimmed.repo) {
       setFormError('Token, Besitzer und Repository-Name werden benötigt.');
       return;
@@ -328,14 +349,15 @@ function GithubBackupSection({ db }: { db: Database | null }) {
         </p>
 
         <Input
+          ref={tokenRef}
           label="Token"
           type="password"
           autoComplete="off"
           value={token}
           onChange={(e) => setToken(e.target.value)}
         />
-        <Input label="Repository-Besitzer" value={owner} onChange={(e) => setOwner(e.target.value)} />
-        <Input label="Repository-Name" value={repo} onChange={(e) => setRepo(e.target.value)} />
+        <Input ref={ownerRef} label="Repository-Besitzer" value={owner} onChange={(e) => setOwner(e.target.value)} />
+        <Input ref={repoRef} label="Repository-Name" value={repo} onChange={(e) => setRepo(e.target.value)} />
 
         {formError && <p className="text-sm text-negative">{formError}</p>}
 
