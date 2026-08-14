@@ -526,6 +526,13 @@ Letzte Korrekturrunde (Details-Notiz, Tastatur/Tab-Leiste, Kategorieauswahl
 Ausgabe/Einnahme/Transfer, Stammdaten Beendete-Filter/Löschen, Auswertung
 Mehrfach-Aufklappen, Feldbreiten) erledigt.
 
+Umstellung auf den HUD-Stil abgeschlossen: Tokens, Basis-Komponenten und alle
+Screens. Komponenten sind `Amount`, `Button`, `Chip`, `Input`, `Panel`,
+`ProportionLine`, `Ring` — `Card` und `ProgressBar` sind ersatzlos entfernt.
+`/styleguide` zeigt alle Komponenten in allen Zuständen. Die Begründungen
+hinter den Tokens stehen in `SPEC-design-hud.md`; bindend ist der
+Design-Abschnitt oben.
+
 Offen:
 - Saldo-Abgleich gegen die Realität (`balance_checks`, siehe „Erweiterung")
 - Netto-Vermögen (Erfassung + Kurve)
