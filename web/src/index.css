@@ -100,30 +100,44 @@
   }
 }
 
-.tabular-amount {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
+/* In @layer components, damit Tailwind-Utilities (Layer "utilities" kommt
+   danach) sie ueberschreiben koennen — sonst gewaenne die Farbe aus
+   .hud-label gegen ein text-negative am selben Element. */
+@layer components {
+  .tabular-amount {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
 
-/* Sektionstitel und Labels: Monospace-Versalien mit weitem Buchstabenabstand.
-   Der doppelte Schraegstrich vor Paneltiteln steht im Markup, nicht hier —
-   er ist Text, kein Dekor, und soll im Accessibility-Baum auftauchen. */
-.hud-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.2;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-mono);
-}
+  /* Sektionstitel und Labels: Monospace-Versalien mit weitem Buchstabenabstand.
+     Der doppelte Schraegstrich vor Paneltiteln steht im Markup, nicht hier —
+     er ist Text, kein Dekor, und soll im Accessibility-Baum auftauchen. */
+  .hud-page-title {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
 
-.hud-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.2;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  .hud-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-mono);
+  }
+
+  .hud-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
 }
 
 /* Eckwinkel des Panels: ein einziges Pseudo-Element mit umlaufendem Rahmen,

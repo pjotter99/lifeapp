@@ -7,8 +7,8 @@ interface RingProps {
   label?: string;
   /** Inhalt in der Mitte — im Regelfall ein Betrag. */
   children?: ReactNode;
-  /** Aussendurchmesser in px. */
-  size?: number;
+  /** Aussendurchmesser: Zahl = px, String = beliebige CSS-Laenge. */
+  size?: number | string;
   /** Ueberschreibt --accent, z. B. fuer Kategoriefarben. */
   color?: string;
 }
@@ -22,8 +22,10 @@ export function Ring({ value, label, children, size = 200, color }: RingProps) {
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - clamped / 100);
 
+  // aspect-square statt einer zweiten Laengenangabe: so bleibt der Ring auch
+  // bei relativen Breiten wie "min(340px, 100%)" rund.
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div className="relative aspect-square shrink-0" style={{ width: size }}>
       {/* vector-effect: die viewBox skaliert auf jede size, der Strich soll
           aber laut Design-Abschnitt immer 2px bleiben und nicht mitwachsen.
           Die Strichmuster-Laenge (dasharray) bleibt davon unberuehrt, sie
@@ -65,7 +67,10 @@ export function Ring({ value, label, children, size = 200, color }: RingProps) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label}
-        className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center"
+        // px-2 statt mehr: der Innenraum muss den laengsten realistischen
+        // Betrag aufnehmen. Bei 340px Ring und 44px Mono sind das 12 Zeichen
+        // (999.999,99 €); mit px-4 waere schon ab sechs Stellen Schluss.
+        className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-2 text-center"
       >
         {children}
         {label && <span className="hud-label">{label}</span>}

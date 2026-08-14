@@ -64,7 +64,7 @@ export function Styleguide() {
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-14">
         <header className="flex flex-col gap-1">
-          <h1 className="font-mono text-2xl uppercase tracking-[0.12em]">Styleguide</h1>
+          <h1 className="hud-page-title">Styleguide</h1>
           <p className="text-text-dim">
             Basis-Komponenten im HUD-Stil, in allen Zuständen. Kein Screen — nur die Bausteine, aus denen Screens gebaut
             werden.

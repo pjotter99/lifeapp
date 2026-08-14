@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
-import { Amount, Button, Card, ProgressBar } from './components';
+import { Amount, Button, Panel, Ring } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { buildExportArchive } from './data/backup.ts';
 import {
@@ -17,6 +17,12 @@ import { shareOrDownload } from './shareOrDownload.ts';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+// Der Kontostand-Ring darf nicht breiter werden als der Bildschirm. 340px
+// fasst in 44px Mono Betraege bis 999.999,99 € — darueber liefe die Zahl aus
+// dem Ring, was fuer ein Girokonto dieser App keine ernste Groesse ist.
+const BALANCE_RING_SIZE = 'min(340px, 100%)';
+const SAVINGS_RING_SIZE = 200;
 
 function formatGermanDateTime(iso: string): string {
   const date = new Date(iso);
@@ -53,6 +59,16 @@ function formatShortDate(iso: string): string {
   return `${day}.${month}.`;
 }
 
+/** Beschriftete Zahl unter einem Ring — Label in Mono-Versalien, Betrag darunter. */
+function RingCaption({ label, cents, size = 'md' }: { label: string; cents: number; size?: 'sm' | 'md' }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="hud-label">{label}</span>
+      <Amount cents={cents} size={size} />
+    </div>
+  );
+}
+
 export function Dashboard() {
   const [db, setDb] = useState<Database | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -83,6 +99,15 @@ export function Dashboard() {
     data?.savings_rate.goal_cents && data.savings_rate.goal_cents > 0
       ? (data.savings_rate.achieved_cents / data.savings_rate.goal_cents) * 100
       : 0;
+
+  // Der Bogen des Kontostand-Rings zeigt, welcher Anteil des Kontostands nach
+  // den offenen Fixkosten und der fehlenden Sparrate noch frei ist — also die
+  // "Verfuegbar bis Monatsende"-Zahl, die unter dem Ring beziffert steht. Ohne
+  // positiven Kontostand gibt es nichts zu verteilen, dann bleibt der Ring leer.
+  const balanceCents = data?.balance.balance_cents ?? null;
+  const availableCents = data?.available_until_month_end_cents ?? null;
+  const availablePct =
+    balanceCents !== null && balanceCents > 0 && availableCents !== null ? (availableCents / balanceCents) * 100 : 0;
 
   const isGithubBackupStale = !lastGithubBackupAt || Date.now() - new Date(lastGithubBackupAt).getTime() > SEVEN_DAYS_MS;
 
@@ -118,17 +143,23 @@ export function Dashboard() {
     setReminder((r) => ({ lastExportAt: r?.lastExportAt ?? null, dismissedAt: nowIso }));
   }
 
+  // Fortlaufender Zaehler statt fester Werte: die Staffelung soll der
+  // tatsaechlichen Reihenfolge folgen, auch wenn Panels wegfallen (kein
+  // Sparziel gesetzt, keine Fixkosten offen). Wird bei jedem Render neu
+  // gezaehlt und ist damit deterministisch.
+  let panelIndex = 0;
+
   return (
     <div
       className="flex min-h-svh flex-col gap-8 p-4"
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <h1 className="hud-page-title">Dashboard</h1>
 
       {error && <p className="text-sm text-negative">{error}</p>}
 
       {showReminder && (
-        <Card className="flex flex-col gap-3">
+        <Panel title="Sicherung" index={panelIndex++} className="flex flex-col gap-3">
           <p className="text-sm text-text-dim">
             {reminder?.lastExportAt
               ? `Letzte manuelle Sicherung: ${formatGermanDateTime(reminder.lastExportAt)}.`
@@ -144,84 +175,87 @@ export function Dashboard() {
               Später
             </Button>
           </div>
-        </Card>
+        </Panel>
       )}
 
       {data && !data.balance.available && (
-        <Card className="flex flex-col gap-2">
+        <Panel title="Kontostand" index={panelIndex++} className="flex flex-col gap-3">
           <p className="text-sm text-text-dim">
             Kein Startsaldo bzw. Startdatum gesetzt — der Kontostand lässt sich ohne das nicht berechnen.
           </p>
-          <a href={routeHref('/stammdaten')} className="text-sm font-medium text-accent underline">
+          <a href={routeHref('/stammdaten')} className="hud-label text-accent underline">
             Zu den Stammdaten
           </a>
-        </Card>
+        </Panel>
       )}
 
       {data && data.balance.available && (
-        <>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-text-dim">Kontostand jetzt</span>
-            <Amount cents={data.balance.balance_cents!} size="lg" />
+        <div className="flex flex-col items-center gap-10">
+          <div className="flex w-full flex-col items-center gap-4">
+            <Ring value={availablePct} label="Kontostand" size={BALANCE_RING_SIZE}>
+              <Amount cents={balanceCents!} size="lg" />
+            </Ring>
+            <RingCaption label="Verfügbar bis Monatsende" cents={availableCents!} />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-text-dim">Verfügbar bis Monatsende</span>
-            <Amount cents={data.available_until_month_end_cents!} size="md" />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-xs text-text-dim">Sparrate</span>
-            {data.savings_rate.goal_cents !== null ? (
-              <>
-                <div className="flex items-baseline justify-between gap-3">
-                  <Amount cents={data.savings_rate.achieved_cents} size="md" />
-                  <span className="flex items-baseline gap-1 text-sm text-text-dim">
-                    von <Amount cents={data.savings_rate.goal_cents} size="sm" />
-                    {data.savings_rate.mode === 'percent' && data.savings_rate.target_percent !== null && (
-                      <span>({data.savings_rate.target_percent.toString().replace('.', ',')} %)</span>
-                    )}
-                  </span>
-                </div>
-                <ProgressBar value={progressPct} />
-              </>
-            ) : (
+          {data.savings_rate.goal_cents !== null ? (
+            <div className="flex flex-col items-center gap-4">
+              <Ring value={progressPct} label="Sparrate" size={SAVINGS_RING_SIZE}>
+                <Amount cents={data.savings_rate.achieved_cents} size="md" />
+              </Ring>
+              <RingCaption
+                label={
+                  data.savings_rate.mode === 'percent' && data.savings_rate.target_percent !== null
+                    ? `Ziel — ${data.savings_rate.target_percent.toString().replace('.', ',')} %`
+                    : 'Ziel'
+                }
+                cents={data.savings_rate.goal_cents}
+                size="sm"
+              />
+            </div>
+          ) : (
+            <Panel title="Sparrate" index={panelIndex++} className="w-full">
               <p className="text-sm text-text-dim">Noch kein Sparziel gesetzt.</p>
-            )}
-          </div>
-        </>
+            </Panel>
+          )}
+        </div>
       )}
 
       {data && data.upcoming_fixed_costs.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Anstehende Fixkosten</span>
-          <div className="flex flex-col gap-2">
-            {data.upcoming_fixed_costs.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 text-sm">
-                <span className="w-12 shrink-0 text-text-dim">{formatShortDate(item.due_date)}</span>
-                <span className="flex-1 truncate">{item.name}</span>
+        <Panel title="Anstehende Fixkosten" status={monthLabel(data.month)} index={panelIndex++}>
+          <ul className="flex flex-col">
+            {data.upcoming_fixed_costs.map((item, i) => (
+              // Statusstrich links: Fixkosten sind ausnahmslos Ausgaben.
+              <li
+                key={item.id}
+                className={`flex items-center gap-3 border-l-2 border-l-negative py-3 pl-3 ${
+                  i > 0 ? 'border-t border-t-border' : ''
+                }`}
+              >
+                <span className="hud-label w-12 shrink-0">{formatShortDate(item.due_date)}</span>
+                <span className="flex-1 truncate text-sm">{item.name}</span>
                 <Amount cents={item.amount_cents} size="sm" />
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Panel>
       )}
 
       {data && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-text-dim">Ausgaben {monthLabel(data.month)}</span>
+        <Panel title={monthLabel(data.month)} index={panelIndex++}>
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <span className="hud-label">Ausgaben</span>
             <Amount cents={data.expenses_this_month_cents} size="sm" />
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-text-dim">Nicht erfasst {monthLabel(data.month)}</span>
+          <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+            <span className="hud-label">Nicht erfasst</span>
             <Amount cents={data.unrecorded_this_month_cents} size="sm" />
           </div>
-        </div>
+        </Panel>
       )}
 
       {lastGithubBackupAt !== undefined && (
-        <p className={`text-xs ${isGithubBackupStale ? 'text-negative' : 'text-text-dim'}`}>
+        <p className={`hud-label ${isGithubBackupStale ? 'text-negative' : ''}`}>
           {lastGithubBackupAt ? `Letzte Sicherung: ${formatGermanDateTime(lastGithubBackupAt)}` : 'Noch keine Sicherung'}
         </p>
       )}
