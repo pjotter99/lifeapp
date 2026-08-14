@@ -7,7 +7,7 @@ export interface TransactionListItem {
   date: string;
   amount_cents: number;
   category_id: number;
-  category_name: string;
+  category_name: string | null;
   is_transfer: number;
 }
 
@@ -51,6 +51,9 @@ function today(): string {
 
 // limit wird auf 1-100 gedeckelt, Default 10 — die Liste auf /erfassen
 // zeigt nur die letzten Buchungen, nie die ganze Tabelle.
+//
+// LEFT JOIN, nicht JOIN: importierte Buchungen haben noch keine Kategorie
+// und wuerden sonst still aus der Liste fallen.
 export function getTransactions(db: Database, limit?: number): TransactionListItem[] {
   const parsed = limit ?? 10;
   const clamped = Number.isFinite(parsed) ? Math.min(Math.max(Math.trunc(parsed), 1), 100) : 10;
@@ -59,7 +62,7 @@ export function getTransactions(db: Database, limit?: number): TransactionListIt
     db,
     `SELECT t.id, t.date, t.amount_cents, t.category_id, c.name AS category_name, t.is_transfer
      FROM transactions t
-     JOIN categories c ON c.id = t.category_id
+     LEFT JOIN categories c ON c.id = t.category_id
      ORDER BY t.date DESC, t.id DESC
      LIMIT ?`,
     [clamped],

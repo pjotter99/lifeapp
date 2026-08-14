@@ -88,7 +88,7 @@ export function buildTransactionsCsv(db: Database): string {
     amount_cents: number;
     account_name: string;
     note: string | null;
-    cat_name: string;
+    cat_name: string | null;
     cat_parent_id: number | null;
     parent_name: string | null;
   }>(
@@ -97,7 +97,7 @@ export function buildTransactionsCsv(db: Database): string {
             c.name AS cat_name, c.parent_id AS cat_parent_id, p.name AS parent_name
      FROM transactions t
      JOIN accounts a ON a.id = t.account_id
-     JOIN categories c ON c.id = t.category_id
+     LEFT JOIN categories c ON c.id = t.category_id
      LEFT JOIN categories p ON p.id = c.parent_id
      ORDER BY t.date ASC, t.id ASC`,
   );
@@ -107,8 +107,11 @@ export function buildTransactionsCsv(db: Database): string {
     // Buchungen liegen ueblicherweise auf einer Unterkategorie; eine direkt
     // auf einer Oberkategorie ist im Modell erlaubt (kein Fremdschluessel-
     // Zwang zur Blattebene), dann bleibt die Unterkategorie-Spalte leer.
-    const topName = row.cat_parent_id === null ? row.cat_name : (row.parent_name ?? '');
-    const subName = row.cat_parent_id === null ? '' : row.cat_name;
+    // Importierte, noch nicht kategorisierte Buchungen haben gar keine
+    // Kategorie — sie gehoeren trotzdem in die CSV, sonst fehlt Geld im
+    // langlebigen Datensatz.
+    const topName = row.cat_name === null ? '' : row.cat_parent_id === null ? row.cat_name : (row.parent_name ?? '');
+    const subName = row.cat_name === null || row.cat_parent_id === null ? '' : row.cat_name;
     lines.push(
       [
         row.date,

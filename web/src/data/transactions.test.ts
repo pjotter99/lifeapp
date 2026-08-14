@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getCategories, type Category } from './categories.ts';
+import { execRun } from './sqlHelpers.ts';
 import { createTestDb } from './testDb.ts';
 import { createTransaction, deleteTransaction, getMonthSummary, getTransactions } from './transactions.ts';
 
@@ -225,4 +226,22 @@ test('getMonthSummary ignoriert Buchungen ausserhalb des laufenden Monats', asyn
   assert.equal(summary.income_cents, 0);
   assert.equal(summary.expense_cents, 0);
   assert.equal(summary.balance_cents, 0);
+});
+
+// Regression: bis zum CAMT-Import hatte jede Buchung eine Kategorie, der
+// INNER JOIN war deshalb unauffaellig. Importierte Buchungen haben keine und
+// fielen dadurch still aus der Liste.
+test('getTransactions zeigt auch Buchungen ohne Kategorie', async () => {
+  const db = await createTestDb();
+  execRun(
+    db,
+    `INSERT INTO transactions (date, amount_cents, category_id, account_id, source, source_hash, hash_seq)
+     VALUES ('2026-08-10', -4317, NULL, 1, 'camt', 'H1', 0)`,
+  );
+
+  const list = getTransactions(db, 10);
+
+  assert.equal(list.length, 1);
+  assert.equal(list[0]!.category_id, null);
+  assert.equal(list[0]!.category_name, null);
 });

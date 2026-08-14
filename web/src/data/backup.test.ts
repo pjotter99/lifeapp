@@ -18,6 +18,10 @@ import { createTransaction } from './transactions.ts';
 import { execRun } from './sqlHelpers.ts';
 import { createTestDb, loadMigrationFilesFromDisk } from './testDb.ts';
 
+/** CSV-Zeilenende laut buildTransactionsCsv — als Konstante, damit die
+ *  Escape-Sequenz nicht in jedem Test einzeln steht. */
+const CSV_LINE_BREAK = String.fromCharCode(13, 10);
+
 function findCategory(categories: Category[], name: string, parentName?: string): Category {
   const match = categories.find((c) => {
     if (c.name !== name) return false;
@@ -265,4 +269,22 @@ test('prepareImportPreview wirft bei einer Datei ohne unser Schema', async () =>
     () => prepareImportPreview('kaputt.sqlite', bytes, loadMigrationFilesFromDisk(), testOpenDb),
     /Keine gültige Sicherung dieser App/,
   );
+});
+
+// Regression: die CSV ist laut CLAUDE.md der Datensatz, der auch in zehn
+// Jahren noch lesbar ist. Ein INNER JOIN auf categories liess importierte,
+// noch nicht kategorisierte Buchungen daraus verschwinden.
+test('buildTransactionsCsv enthaelt auch Buchungen ohne Kategorie', async () => {
+  const db = await createTestDb();
+  execRun(
+    db,
+    `INSERT INTO transactions (date, amount_cents, category_id, account_id, note, source, source_hash, hash_seq)
+     VALUES ('2026-08-10', -4317, NULL, 1, 'REWE', 'camt', 'H1', 0)`,
+  );
+
+  const csv = buildTransactionsCsv(db);
+  const lines = csv.trimEnd().split(CSV_LINE_BREAK);
+
+  assert.equal(lines.length, 2, 'Kopfzeile plus die eine Buchung');
+  assert.match(lines[1]!, /^2026-08-10;-43,17;;;/, 'Kategoriespalten leer, Betrag steht drin');
 });

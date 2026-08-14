@@ -7,7 +7,7 @@ export interface Transaction {
   date: string;
   amount_cents: number;
   category_id: number;
-  category_name: string;
+  category_name: string | null;
   is_transfer: number;
 }
 
@@ -89,7 +89,9 @@ export function TransactionRow({ tx, isOpen, onOpen, onClose, onDelete, separate
         style={{ transform: isOpen ? 'translateX(-5rem)' : 'translateX(0)' }}
       >
         <span className="hud-label w-12 shrink-0">{formatShortDate(tx.date)}</span>
-        <span className="flex-1 truncate text-sm text-text">{tx.category_name}</span>
+        <span className={`flex-1 truncate text-sm ${tx.category_name === null ? 'text-text-dim italic' : 'text-text'}`}>
+          {tx.category_name ?? 'Ohne Kategorie'}
+        </span>
         <Amount cents={tx.amount_cents} size="sm" />
       </div>
     </div>
