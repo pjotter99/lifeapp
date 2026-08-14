@@ -10,6 +10,7 @@ import {
   saveLastManualExportAt,
   saveReminderDismissedAt,
 } from './data/indexeddb.ts';
+import { countUncategorized } from './data/camtImport.ts';
 import { getDashboard, type Dashboard as DashboardData } from './data/dashboard.ts';
 import { getReadyDb } from './data/sqlite.ts';
 import { routeHref } from './routing.ts';
@@ -76,6 +77,8 @@ export function Dashboard() {
 
   const [lastGithubBackupAt, setLastGithubBackupAt] = useState<string | null>();
 
+  const [uncategorized, setUncategorized] = useState(0);
+
   const [reminder, setReminder] = useState<{ lastExportAt: string | null; dismissedAt: string | null } | null>(null);
   const [reminderExporting, setReminderExporting] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
@@ -85,6 +88,7 @@ export function Dashboard() {
       .then((database: Database) => {
         setDb(database);
         setData(getDashboard(database));
+        setUncategorized(countUncategorized(database));
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen.'));
 
@@ -219,6 +223,19 @@ export function Dashboard() {
             </Panel>
           )}
         </div>
+      )}
+
+      {/* Ohne diesen Hinweis waere der Nachkategorisieren-Screen nach einem
+          Import nur noch ueber die URL erreichbar. */}
+      {uncategorized > 0 && (
+        <Panel title="Ohne Kategorie" status={uncategorized} index={panelIndex++} className="flex flex-col gap-3">
+          <p className="text-sm text-text-dim">
+            Importierte Buchungen warten auf eine Kategorie — bis dahin fehlen sie in der Auswertung.
+          </p>
+          <a href={routeHref('/nachkategorisieren')} className="hud-label text-accent underline">
+            Nachkategorisieren
+          </a>
+        </Panel>
       )}
 
       {data && data.upcoming_fixed_costs.length > 0 && (

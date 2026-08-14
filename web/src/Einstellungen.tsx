@@ -2,6 +2,7 @@ import type { Database } from 'sql.js';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Amount, Button, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
+import { CamtImportSection } from './CamtImportSection';
 import { buildExportArchive, prepareImportPreview, type ImportPreview } from './data/backup.ts';
 import type { GithubSettings } from './data/githubBackup.ts';
 import { maybeRunGithubBackup } from './data/githubBackupScheduler.ts';
@@ -256,6 +257,8 @@ export function Einstellungen() {
           </Panel>
         )}
       </section>
+
+      <CamtImportSection db={db} onImported={() => undefined} />
 
       <GithubBackupSection db={db} />
 

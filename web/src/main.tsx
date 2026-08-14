@@ -5,12 +5,13 @@ import { Auswertung } from './Auswertung.tsx'
 import { Dashboard } from './Dashboard.tsx'
 import { Einstellungen } from './Einstellungen.tsx'
 import { ExpenseEntry } from './ExpenseEntry.tsx'
+import { Nachkategorisieren } from './Nachkategorisieren.tsx'
 import { currentRoute } from './routing.ts'
 import { Stammdaten } from './Stammdaten.tsx'
 import { Styleguide } from './Styleguide.tsx'
 import { UpdateBanner } from './UpdateBanner.tsx'
 
-// Kein Router fuer sechs Routen — einfache Pfadweiche reicht. Vite liefert
+// Kein Router fuer sieben Routen — einfache Pfadweiche reicht. Vite liefert
 // index.html per SPA-Fallback auch fuer diese Pfade direkt aus, GitHub Pages
 // per 404.html-Umleitung (siehe public/404.html). "/" ist das Dashboard, die
 // Ausgabenerfassung liegt bewusst auf /erfassen. /stammdaten ist nicht mehr
@@ -22,6 +23,7 @@ function page() {
   const route = currentRoute()
   if (route === '/styleguide') return <Styleguide />
   if (route === '/stammdaten') return <Stammdaten />
+  if (route === '/nachkategorisieren') return <Nachkategorisieren />
   if (route === '/einstellungen') return <Einstellungen />
   if (route === '/erfassen') return <ExpenseEntry />
   if (route === '/auswertung') return <Auswertung />
