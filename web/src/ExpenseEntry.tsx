@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js';
 import { useEffect, useRef, useState } from 'react';
-import { Amount, Button, Card, Chip, Input } from './components';
+import { Amount, Button, Chip, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
 import { TransactionRow, type Transaction } from './TransactionRow';
@@ -49,6 +49,28 @@ function today(): string {
 
 const AMOUNT_PATTERN = /^\d*[.,]?\d*$/;
 const TOAST_DURATION_MS = 3000;
+
+const MONTH_NAMES = [
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
+];
+
+// Der Monatsueberblick zeigt den laufenden Monat. Ohne Zeitbezug waere
+// "Ausgaben 84,20 €" mehrdeutig (siehe CLAUDE.md, Dashboard).
+function currentMonthLabel(): string {
+  const now = new Date();
+  return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+}
 
 export function ExpenseEntry() {
   const [db, setDb] = useState<Database | null>(null);
@@ -233,23 +255,26 @@ export function ExpenseEntry() {
       {dbError && <p className="text-sm text-negative">{dbError}</p>}
 
       {summary && (
-        <div className="flex items-center justify-between gap-4">
+        <Panel title={currentMonthLabel()} className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-text-dim">Einnahmen</span>
+            <span className="hud-label">Einnahmen</span>
             <Amount cents={summary.income_cents} size="sm" />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-text-dim">Ausgaben</span>
+            <span className="hud-label">Ausgaben</span>
             <Amount cents={summary.expense_cents} size="sm" />
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="text-xs text-text-dim">Saldo</span>
+            <span className="hud-label">Saldo</span>
             <Amount cents={summary.balance_cents} size="sm" />
           </div>
-        </div>
+        </Panel>
       )}
 
-      <Card>
+      {/* Kein Panel um das Betragsfeld: es bringt seinen eigenen Rahmen mit,
+          ein zweiter darum waere der verschachtelte Rahmen, den der
+          Design-Abschnitt auf einer Handyspalte ausschliesst. */}
+      <div className="flex flex-col gap-2">
         <Input
           ref={amountRef}
           fieldSize="lg"
@@ -262,8 +287,8 @@ export function ExpenseEntry() {
             if (AMOUNT_PATTERN.test(e.target.value)) setAmount(e.target.value);
           }}
         />
-        {error && <p className="mt-2 text-center text-sm text-negative">{error}</p>}
-      </Card>
+        {error && <p className="text-center text-sm text-negative">{error}</p>}
+      </div>
 
       <div className="flex gap-2">
         {KIND_OPTIONS.map((k) => (
@@ -282,26 +307,24 @@ export function ExpenseEntry() {
         disabled={saving}
       />
 
-      <Button variant="secondary" className="w-full" disabled={!canConfirm || saving} onClick={confirmSave}>
+      <Button variant="primary" className="w-full" disabled={!canConfirm || saving} onClick={confirmSave}>
         {canConfirm ? <Amount cents={previewCents} size="md" /> : 'Bestätigen'}
       </Button>
 
       {recentTransactions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Letzte Buchungen</span>
-          <div className="flex flex-col gap-2">
-            {recentTransactions.map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
-                isOpen={tx.id === openRowId}
-                onOpen={() => setOpenRowId(tx.id)}
-                onClose={() => setOpenRowId((current) => (current === tx.id ? null : current))}
-                onDelete={() => deleteTransaction(tx.id)}
-              />
-            ))}
-          </div>
-        </div>
+        <Panel title="Letzte Buchungen">
+          {recentTransactions.map((tx, i) => (
+            <TransactionRow
+              key={tx.id}
+              tx={tx}
+              separated={i > 0}
+              isOpen={tx.id === openRowId}
+              onOpen={() => setOpenRowId(tx.id)}
+              onClose={() => setOpenRowId((current) => (current === tx.id ? null : current))}
+              onDelete={() => deleteTransaction(tx.id)}
+            />
+          ))}
+        </Panel>
       )}
 
       <Button variant="secondary" className="self-start" onClick={() => setDetailsOpen((open) => !open)}>
@@ -314,8 +337,8 @@ export function ExpenseEntry() {
           <Input label="Notiz" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
 
           {needsAccountField && (
-            <div className="flex flex-col gap-1.5 text-sm text-text-dim">
-              Konto
+            <div className="flex flex-col gap-1.5">
+              <span className="hud-label">Konto</span>
               <div className="flex flex-wrap gap-2">
                 {accounts.map((acc) => (
                   <Chip key={acc.id} selected={acc.id === accountId} onClick={() => setAccountId(acc.id)}>
@@ -333,15 +356,15 @@ export function ExpenseEntry() {
           className="fixed inset-x-4 z-10"
           style={{ bottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
         >
-          <Card className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm text-text-dim">Gespeichert: {toast.categoryName}</span>
+          <Panel className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="hud-label">Gespeichert: {toast.categoryName}</span>
               <Amount cents={toast.amountCents} size="sm" />
             </div>
             <Button variant="secondary" onClick={undoToast}>
               Rückgängig
             </Button>
-          </Card>
+          </Panel>
         </div>
       )}
 
