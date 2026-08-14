@@ -105,7 +105,11 @@ test('buildReadme enthaelt Erstellungsdatum, Version, Schema-Version und Tabelle
 
   assert.match(readme, /Erstellt am:\s+2026-08-08 14:32/);
   assert.match(readme, /App-Version:\s+\d+\.\d+\.\d+/);
-  assert.match(readme, /Schema-Version:\s+7 \(7 Migrationen angewendet\)/);
+  // Aus der echten Migrationsliste abgeleitet statt fest verdrahtet: die Zahl
+  // aendert sich mit jeder neuen Migration, geprueft wird hier aber das
+  // Format der Zeile, nicht der Schemastand.
+  const migrationCount = loadMigrationFilesFromDisk().length;
+  assert.match(readme, new RegExp(`Schema-Version:\\s+${migrationCount} \\(${migrationCount} Migrationen angewendet\\)`));
   assert.match(readme, /accounts\s+1/);
   assert.match(readme, /Zeitraum der Buchungen: - bis -/);
 });

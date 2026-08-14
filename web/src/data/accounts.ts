@@ -8,11 +8,13 @@ export interface Account {
   active: number;
   opening_balance_cents: number;
   opening_date: string | null;
+  iban: string | null;
 }
 
 export interface UpdateAccountInput {
   opening_balance_cents?: number;
   opening_date?: string | null;
+  iban?: string | null;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,7 +23,24 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function getAccounts(db: Database): Account[] {
   return queryAll<Account>(
     db,
-    'SELECT id, name, type, active, opening_balance_cents, opening_date FROM accounts WHERE active = 1 ORDER BY id',
+    'SELECT id, name, type, active, opening_balance_cents, opening_date, iban FROM accounts WHERE active = 1 ORDER BY id',
+  );
+}
+
+/** Normalisiert wie updateAccount speichert — ohne Leerzeichen, Grossbuchstaben. */
+export function normalizeIban(iban: string): string {
+  return iban.replace(/\s+/g, '').toUpperCase();
+}
+
+// Konto zu einer IBAN aus einer CAMT-Datei. null, wenn keine hinterlegt ist —
+// dann waehlt der Nutzer das Konto in der Import-Vorschau.
+export function getAccountByIban(db: Database, iban: string): Account | null {
+  return (
+    queryOne<Account>(
+      db,
+      'SELECT id, name, type, active, opening_balance_cents, opening_date, iban FROM accounts WHERE iban = ?',
+      [normalizeIban(iban)],
+    ) ?? null
   );
 }
 
@@ -51,6 +70,15 @@ export function updateAccount(db: Database, id: number, input: UpdateAccountInpu
     } else {
       updates.opening_date = input.opening_date;
     }
+  }
+
+  if (input.iban !== undefined) {
+    // Leerstring wie "nicht gesetzt" behandeln, sonst kollidiert ein zweites
+    // Konto ohne IBAN mit dem UNIQUE-Index. Normalisiert ohne Leerzeichen und
+    // in Grossbuchstaben, damit "de02 1203 ..." und "DE0212030..." nicht als
+    // zwei verschiedene Konten gelten.
+    const normalized = input.iban === null ? null : input.iban.replace(/\s+/g, '').toUpperCase();
+    updates.iban = normalized === '' ? null : normalized;
   }
 
   const keys = Object.keys(updates);
