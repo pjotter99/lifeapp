@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Amount, Button, Card, Input } from './components';
+import { Amount, Button, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { buildExportArchive, prepareImportPreview, type ImportPreview } from './data/backup.ts';
 import type { GithubSettings } from './data/githubBackup.ts';
@@ -154,23 +154,23 @@ export function Einstellungen() {
       className="mx-auto flex min-h-svh max-w-2xl flex-col gap-10 p-4"
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
-      <h1 className="text-2xl font-semibold">Einstellungen</h1>
+      <h1 className="hud-page-title">Einstellungen</h1>
       {dbError && <p className="text-sm text-negative">{dbError}</p>}
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">Stammdaten</h2>
-        <Card className="flex items-center justify-between gap-3">
+        <h2 className="hud-title">// Stammdaten</h2>
+        <Panel className="flex items-center justify-between gap-3">
           <p className="text-sm text-text-dim">Konten, wiederkehrende Posten, Sparziel</p>
-          <a href={routeHref('/stammdaten')} className="text-sm font-medium text-accent underline">
+          <a href={routeHref('/stammdaten')} className="hud-label text-accent underline">
             Öffnen
           </a>
-        </Card>
+        </Panel>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">Sicherung</h2>
+        <h2 className="hud-title">// Sicherung</h2>
 
-        <Card className="flex flex-col gap-3">
+        <Panel className="flex flex-col gap-3">
           <p className="text-sm text-text-dim">
             Erzeugt eine ZIP-Datei mit der vollständigen Datenbank, allen Buchungen als CSV und einer LIESMICH.txt.
           </p>
@@ -178,9 +178,9 @@ export function Einstellungen() {
           <Button variant="primary" className="self-start" disabled={!db || exporting} onClick={handleExport}>
             {exporting ? 'Wird erzeugt…' : 'Sicherung exportieren'}
           </Button>
-        </Card>
+        </Panel>
 
-        <Card className="flex flex-col gap-3">
+        <Panel className="flex flex-col gap-3">
           <p className="text-sm text-text-dim">
             Sicherung wiederherstellen — akzeptiert die ZIP-Datei oder eine einzelne .sqlite-Datei.
           </p>
@@ -200,12 +200,10 @@ export function Einstellungen() {
           >
             {importState === 'checking' ? 'Wird geprüft…' : 'Datei wählen'}
           </Button>
-        </Card>
+        </Panel>
 
         {pending && (
-          <Card className="flex flex-col gap-3">
-            <p className="text-sm font-medium">Vorschau: {pending.filename}</p>
-
+          <Panel lit title="Vorschau" status={pending.filename} className="flex flex-col gap-3">
             {pending.result.schemaCheck.status === 'older' && (
               <p className="text-xs text-text-dim">
                 Ältere Sicherung — fehlende Migrationen wurden automatisch nachgezogen.
@@ -214,21 +212,21 @@ export function Einstellungen() {
 
             <dl className="flex flex-col gap-1.5 text-sm">
               <div className="flex justify-between gap-3">
-                <dt className="text-text-dim">Zeitraum</dt>
+                <dt className="hud-label">Zeitraum</dt>
                 <dd>
                   {pending.result.overview.dateRange.from ?? '–'} bis {pending.result.overview.dateRange.to ?? '–'}
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-text-dim">Buchungen</dt>
+                <dt className="hud-label">Buchungen</dt>
                 <dd>{pending.result.overview.transactionCount}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-text-dim">Einnahmen</dt>
+                <dt className="hud-label">Einnahmen</dt>
                 <Amount cents={pending.result.overview.incomeCents} size="sm" />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-text-dim">Ausgaben</dt>
+                <dt className="hud-label">Ausgaben</dt>
                 <Amount cents={pending.result.overview.expenseCents} size="sm" />
               </div>
             </dl>
@@ -245,17 +243,17 @@ export function Einstellungen() {
                 Abbrechen
               </Button>
             </div>
-          </Card>
+          </Panel>
         )}
 
         {hasUndo && (
-          <Card className="flex flex-col gap-3">
+          <Panel className="flex flex-col gap-3">
             <p className="text-sm text-text-dim">Der letzte Import lässt sich rückgängig machen.</p>
             {undoError && <p className="text-sm text-negative">{undoError}</p>}
             <Button variant="danger" className="self-start" disabled={undoing} onClick={handleUndo}>
               {undoing ? 'Wird rückgängig gemacht…' : 'Letzten Import rückgängig machen'}
             </Button>
-          </Card>
+          </Panel>
         )}
       </section>
 
@@ -345,8 +343,8 @@ function GithubBackupSection({ db }: { db: Database | null }) {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">GitHub-Backup</h2>
-      <Card className="flex flex-col gap-3">
+      <h2 className="hud-title">// GitHub-Backup</h2>
+      <Panel className="flex flex-col gap-3">
         <p className="text-sm text-text-dim">
           Automatische Sicherung nach jeder Änderung (frühestens alle 15 Minuten) in ein privates GitHub-Repository.
           Fine-grained Personal Access Token mit Schreibrechten auf genau dieses Repository.
@@ -370,12 +368,12 @@ function GithubBackupSection({ db }: { db: Database | null }) {
         </Button>
 
         {loaded && status && (
-          <p className={`text-xs ${isStale(status.lastSuccessAt) ? 'text-negative' : 'text-text-dim'}`}>
+          <p className={`hud-label ${isStale(status.lastSuccessAt) ? 'text-negative' : ''}`}>
             {status.lastSuccessAt ? `Letzte Sicherung: ${formatGermanDateTime(status.lastSuccessAt)}` : 'Noch keine Sicherung übertragen.'}
           </p>
         )}
         {status?.lastError && <p className="text-sm text-negative">Letzter Fehler: {status.lastError}</p>}
-      </Card>
+      </Panel>
     </section>
   );
 }

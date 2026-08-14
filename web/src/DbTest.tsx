@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card } from './components';
+import { Panel } from './components';
 import { getDb, persist, wasLoadedFromIndexedDb } from './data/sqlite';
 import { runMigrations } from './data/migrate';
 import { migrationFiles } from './data/migrationFiles';
@@ -60,34 +60,30 @@ export function DbTest() {
 
   return (
     <div className="flex min-h-svh flex-col gap-6 p-4">
-      <h1 className="text-2xl font-semibold">DB-Test (sql.js)</h1>
+      <h1 className="hud-page-title">DB-Test (sql.js)</h1>
       <p className="text-sm text-text-dim">
         Verifikation für Umbau-Punkt 1 — läuft komplett im Browser, kein Server beteiligt.
       </p>
 
       {error && (
-        <Card>
+        <Panel>
           <p className="text-sm text-negative">{error}</p>
-        </Card>
+        </Panel>
       )}
 
       {!result && !error && <p className="text-sm text-text-dim">Lädt…</p>}
 
       {result && (
         <>
-          <Card className="flex flex-col gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-text-dim">Datenquelle</span>
+          <Panel title="Datenquelle" className="flex flex-col gap-2">
             <p className="text-sm">
               {result.loadedFromIndexedDb
                 ? 'Aus IndexedDB geladen (wiederkehrender Besuch).'
                 : 'Frische, leere Datenbank angelegt (erster Besuch oder IndexedDB geleert).'}
             </p>
-          </Card>
+          </Panel>
 
-          <Card className="flex flex-col gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-text-dim">
-              Migrationen ({result.migrationLog.length})
-            </span>
+          <Panel title="Migrationen" status={result.migrationLog.length} className="flex flex-col gap-2">
             <ul className="flex flex-col gap-1 text-sm">
               {result.migrationLog.map((line, i) => (
                 <li key={i} className="tabular-amount text-text-dim">
@@ -95,16 +91,13 @@ export function DbTest() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </Panel>
 
-          <Card className="flex flex-col gap-3">
-            <span className="text-xs font-medium uppercase tracking-wide text-text-dim">
-              Kategorien ({result.categories.length})
-            </span>
+          <Panel title="Kategorien" status={result.categories.length} className="flex flex-col gap-3">
             <div className="flex flex-col gap-3">
               {topCategories.map((top) => (
                 <div key={top.id} className="flex flex-col gap-1">
-                  <span className="font-medium">{top.name}</span>
+                  <span className="text-sm">{top.name}</span>
                   <span className="text-sm text-text-dim">
                     {subCategoriesOf(top.id)
                       .map((s) => s.name)
@@ -113,7 +106,7 @@ export function DbTest() {
                 </div>
               ))}
             </div>
-          </Card>
+          </Panel>
         </>
       )}
     </div>

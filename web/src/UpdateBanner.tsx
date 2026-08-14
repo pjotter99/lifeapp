@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card } from './components';
+import { Button, Panel } from './components';
 import { activateWaitingServiceWorker, registerServiceWorker } from './registerServiceWorker.ts';
 
 // Dezenter Hinweis statt ungefragtem Aktualisieren (Umbau Punkt 5) — ein
@@ -16,12 +16,12 @@ export function UpdateBanner() {
 
   return (
     <div className="fixed inset-x-4 top-4 z-30">
-      <Card className="flex items-center justify-between gap-3">
-        <p className="text-sm text-text-dim">Neue Version verfügbar.</p>
+      <Panel lit className="flex items-center justify-between gap-3">
+        <p className="hud-label">Neue Version verfügbar.</p>
         <Button variant="secondary" onClick={activateWaitingServiceWorker}>
           Neu laden
         </Button>
-      </Card>
+      </Panel>
     </div>
   );
 }

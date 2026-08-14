@@ -40,10 +40,10 @@ export function Panel({
     `${lit ? 'border-border-lit' : 'border-border'} ${surfaces[surface]}`;
   const shellStyle = { ...style, '--panel-delay': `${index * STAGGER_MS}ms` } as CSSProperties;
 
-  // Ohne Titel verhaelt sich das Panel wie die alte Card: die Kinder sitzen
-  // direkt im Rahmen, className beschreibt ihr Layout. Mit Titel braucht es
-  // einen Rumpf, sonst wuerde die Titelzeile Teil dieses Layouts — deshalb
-  // wandert className dann auf den Rumpf statt auf die Huelle.
+  // Ohne Titel sitzen die Kinder direkt im Rahmen und className beschreibt
+  // ihr Layout. Mit Titel braucht es einen Rumpf, sonst wuerde die Titelzeile
+  // Teil dieses Layouts — deshalb wandert className dann auf den Rumpf statt
+  // auf die Huelle.
   if (!title) {
     return (
       <div className={`${shell} ${className}`} style={shellStyle} {...props}>

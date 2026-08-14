@@ -107,7 +107,7 @@ export function Styleguide() {
 
             <Panel className="flex flex-col gap-1">
               <p className="font-medium">Ohne Titel</p>
-              <p className="text-sm text-text-dim">Ersetzt die alte Card. Grund --surface.</p>
+              <p className="text-sm text-text-dim">Grund --surface. Kinder sitzen direkt im Rahmen.</p>
             </Panel>
 
             <Panel surface="surface-2" className="flex flex-col gap-1">
@@ -122,21 +122,24 @@ export function Styleguide() {
         </Section>
 
         <Section title="Listeneinträge">
-          {/* Der Statusstrich links ist noch keine eigene Komponente — er
-              entsteht erst beim Screen-Umbau. Hier nur als Muster. */}
+          {/* Keine eigene Komponente, sondern ein Muster: border-l-2 in der
+              Statusfarbe, border-t ab dem zweiten Eintrag. Genauso in
+              /erfassen, /stammdaten und auf dem Dashboard. */}
           <Panel title="Buchungen">
             <ul className="flex flex-col">
               {[
-                { label: 'Rewe', cents: -3412, tone: 'var(--negative)' },
-                { label: 'Gehalt', cents: 284000, tone: 'var(--positive)' },
-                { label: 'Sparen', cents: -50000, tone: 'var(--accent-dim)' },
+                { label: 'Rewe', cents: -3412, stripe: 'border-l-negative' },
+                { label: 'Gehalt', cents: 284000, stripe: 'border-l-positive' },
+                { label: 'Sparen', cents: -50000, stripe: 'border-l-accent-dim' },
               ].map((row, i) => (
                 <li
                   key={row.label}
-                  className={`flex items-center gap-3 py-3 pl-3 ${i > 0 ? 'border-t border-border' : ''}`}
-                  style={{ boxShadow: `inset 2px 0 0 0 ${row.tone}` }}
+                  className={`flex items-center gap-3 border-l-2 py-3 pl-3 ${row.stripe} ${
+                    i > 0 ? 'border-t border-t-border' : ''
+                  }`}
                 >
-                  <span className="flex-1 text-sm">{row.label}</span>
+                  <span className="hud-label w-12 shrink-0">14.08.</span>
+                  <span className="flex-1 truncate text-sm">{row.label}</span>
                   <Amount cents={row.cents} size="sm" />
                 </li>
               ))}

@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
-import { Amount, Button, Card, Chip, Input } from './components';
+import { Amount, Button, Chip, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
 import { getCategories } from './data/categories.ts';
@@ -81,7 +81,7 @@ export function Stammdaten() {
       className="mx-auto flex min-h-svh max-w-2xl flex-col gap-10 p-4"
       style={{ paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom) + 1rem)' }}
     >
-      <h1 className="text-2xl font-semibold">Stammdaten</h1>
+      <h1 className="hud-page-title">Stammdaten</h1>
       {dbError && <p className="text-sm text-negative">{dbError}</p>}
       <AccountSection db={db} accounts={accounts} onSaved={reload} />
       <SavingsGoalSection db={db} goal={savingsGoal} onSaved={reload} />
@@ -98,7 +98,7 @@ function AccountSection({ db, accounts, onSaved }: { db: Database | null; accoun
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Konto</h2>
+      <h2 className="hud-title">// Konto</h2>
       <div className="flex flex-col gap-4">
         {accounts.map((acc) => (
           <AccountForm key={acc.id} db={db} account={acc} onSaved={onSaved} />
@@ -139,8 +139,7 @@ function AccountForm({ db, account, onSaved }: { db: Database | null; account: A
   }
 
   return (
-    <Card className="flex flex-col gap-3">
-      <span className="font-medium">{account.name}</span>
+    <Panel title={account.name} className="flex flex-col gap-3">
       <Input
         label="Startsaldo"
         fieldWidth="auto"
@@ -155,7 +154,7 @@ function AccountForm({ db, account, onSaved }: { db: Database | null; account: A
       <Button variant="primary" className="self-start" disabled={saving || !db} onClick={save}>
         Speichern
       </Button>
-    </Card>
+    </Panel>
   );
 }
 
@@ -220,8 +219,8 @@ function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: 
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Sparziel</h2>
-      <Card className="flex flex-col gap-3">
+      <h2 className="hud-title">// Sparziel</h2>
+      <Panel className="flex flex-col gap-3">
         {goal ? (
           <p className="flex items-center gap-2 text-sm text-text-dim">
             Aktuell:
@@ -272,7 +271,7 @@ function SavingsGoalSection({ db, goal, onSaved }: { db: Database | null; goal: 
         <Button variant="primary" className="self-start" disabled={saving || !db} onClick={save}>
           Speichern
         </Button>
-      </Card>
+      </Panel>
     </section>
   );
 }
@@ -365,7 +364,7 @@ function RecurringSection({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Wiederkehrende Posten</h2>
+        <h2 className="hud-title">// Wiederkehrende Posten</h2>
         {!formOpen && (
           <Button variant="secondary" onClick={openCreate}>
             Neuer Posten
@@ -393,7 +392,7 @@ function RecurringSection({
       )}
 
       {pendingDelete && (
-        <Card className="flex flex-col gap-3">
+        <Panel lit title="Löschen bestätigen" className="flex flex-col gap-3">
           <p className="text-sm font-medium">"{pendingDelete.item.name}" endgültig löschen?</p>
           <p className="flex items-center gap-2 text-sm text-text-dim">
             {pendingDelete.impact.transactionCount === 0 ? (
@@ -422,7 +421,7 @@ function RecurringSection({
               Abbrechen
             </Button>
           </div>
-        </Card>
+        </Panel>
       )}
 
       {KIND_OPTIONS.map((kind) => {
@@ -434,52 +433,67 @@ function RecurringSection({
           .reduce((sum, r) => sum + monthlyEquivalentCents(r.amount_cents, r.interval), 0);
 
         return (
-          <div key={kind} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-text-dim">{KIND_LABELS[kind]}</span>
-              <Amount cents={Math.round(monthlySumCents)} size="sm" />
-            </div>
-            <div className="flex flex-col gap-2">
-              {items.map((item) => (
-                <RecurringListItem
-                  key={item.id}
-                  item={item}
-                  onEdit={() => openEdit(item)}
-                  onEnd={() => endRecurring(item)}
-                  onDelete={() => askDelete(item)}
-                />
-              ))}
-            </div>
-          </div>
+          // Der Statuszusatz ist die auf den Monat normalisierte Summe der
+          // aktiven Posten — beendete zaehlen nicht mit, auch wenn sie
+          // eingeblendet sind.
+          <Panel key={kind} title={KIND_LABELS[kind]} status={<Amount cents={Math.round(monthlySumCents)} size="sm" />}>
+            {items.map((item, i) => (
+              <RecurringListItem
+                key={item.id}
+                item={item}
+                separated={i > 0}
+                onEdit={() => openEdit(item)}
+                onEnd={() => endRecurring(item)}
+                onDelete={() => askDelete(item)}
+              />
+            ))}
+          </Panel>
         );
       })}
     </section>
   );
 }
 
+// Statusmarkierung wie in den uebrigen Listen: rot Ausgabe, gruen Einnahme,
+// gedaempftes Cyan Transfer.
+const KIND_STRIPES: Record<RecurringKind, string> = {
+  income: 'border-l-positive',
+  expense: 'border-l-negative',
+  transfer: 'border-l-accent-dim',
+};
+
 function RecurringListItem({
   item,
+  separated,
   onEdit,
   onEnd,
   onDelete,
 }: {
   item: Recurring;
+  separated: boolean;
   onEdit: () => void;
   onEnd: () => void;
   onDelete: () => void;
 }) {
   return (
-    <Card surface="surface-2" className={`flex flex-col gap-2 ${item.active === 1 ? '' : 'opacity-50'}`}>
+    <div
+      className={`flex flex-col gap-2 border-l-2 py-3 pl-3 ${KIND_STRIPES[item.kind]} ${
+        separated ? 'border-t border-t-border' : ''
+      } ${item.active === 1 ? '' : 'opacity-50'}`}
+    >
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate font-medium">{item.name}</span>
+        <span className="truncate text-sm">{item.name}</span>
         <Amount cents={item.amount_cents} size="sm" />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-text-dim">
+        <span className="hud-label">
           {item.category_name} · {INTERVAL_LABELS[item.interval]} · Tag {item.day_of_month}
           {item.active === 0 && ' · beendet'}
         </span>
-        <div className="flex shrink-0 gap-2">
+        {/* Kein shrink-0: die drei Knoepfe in Monospace-Versalien sind
+            zusammen breiter als eine Handyspalte und muessen umbrechen
+            duerfen, sonst schiebt die Zeile die ganze Seite horizontal auf. */}
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onEdit}>
             Bearbeiten
           </Button>
@@ -493,7 +507,7 @@ function RecurringListItem({
           </Button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -592,7 +606,7 @@ function RecurringForm({
   }
 
   return (
-    <Card className="flex flex-col gap-4">
+    <Panel lit title={initial ? 'Posten bearbeiten' : 'Neuer Posten'} className="flex flex-col gap-4">
       <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
 
       <Input
@@ -606,7 +620,7 @@ function RecurringForm({
       />
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm text-text-dim">Art</span>
+        <span className="hud-label">Art</span>
         <div className="flex gap-2">
           {KIND_OPTIONS.map((k) => (
             <Chip key={k} selected={kind === k} onClick={() => setKind(k)}>
@@ -617,7 +631,7 @@ function RecurringForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm text-text-dim">Kategorie</span>
+        <span className="hud-label">Kategorie</span>
         <CategoryPicker
           categories={categories}
           topCategoryId={topCategoryId}
@@ -628,7 +642,7 @@ function RecurringForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm text-text-dim">Intervall</span>
+        <span className="hud-label">Intervall</span>
         <div className="flex gap-2">
           {INTERVAL_OPTIONS.map((iv) => (
             <Chip key={iv} selected={interval === iv} onClick={() => setIntervalValue(iv)}>
@@ -660,6 +674,6 @@ function RecurringForm({
           Abbrechen
         </Button>
       </div>
-    </Card>
+    </Panel>
   );
 }
