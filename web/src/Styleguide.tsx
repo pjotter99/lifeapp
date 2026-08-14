@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Amount, Button, Chip, Input, Panel, Ring } from './components';
+import { Amount, Button, Chip, Input, Panel, ProportionLine, Ring } from './components';
 import { BottomTabBar } from './BottomTabBar';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -252,6 +252,18 @@ export function Styleguide() {
               <Amount cents={284531} size="lg" />
             </Ring>
           </Group>
+        </Section>
+
+        <Section title="Proportionslinie">
+          <p className="text-sm text-text-dim">
+            Größenverhältnisse als Haarlinie. Fortschritt gegen ein Ziel ist etwas anderes und wird als Ring dargestellt.
+          </p>
+          <div className="flex max-w-sm flex-col gap-5">
+            <ProportionLine label="42 % — Wohnen" value={42} color="hsl(183 65% 68%)" />
+            <ProportionLine label="27 % — Lebensmittel" value={27} color="hsl(219 65% 68%)" />
+            <ProportionLine label="8 % — Mobilität" value={8} color="hsl(255 65% 68%)" />
+            <ProportionLine label="100 % (ohne Farbe, --accent)" value={100} />
+          </div>
         </Section>
 
         <Section title="Betragsanzeige">
