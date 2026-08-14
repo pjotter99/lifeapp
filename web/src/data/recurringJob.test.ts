@@ -54,7 +54,8 @@ function insertRecurring(db: Database, overrides: RecurringOverrides = {}): numb
   return lastInsertRowId(db);
 }
 
-// Spiegelt server/src/recurringJob.test.ts, portiert auf sql.js.
+// Nachhol-Logik: liegt start_date in der Vergangenheit, legt der Job die
+// fehlenden Perioden bis heute an, aber nie in die Zukunft.
 test('runRecurringJob erzeugt eine faellige Buchung und ist bei zweitem Lauf idempotent', async () => {
   const db = await createTestDb();
   const recurringId = insertRecurring(db, {

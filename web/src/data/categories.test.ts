@@ -17,7 +17,7 @@ function findCategory(categories: Category[], name: string, parentName?: string)
   return match;
 }
 
-// Spiegelt GET /api/categories: nur nicht-archivierte, nach sort_order.
+// Nur nicht-archivierte, nach sort_order.
 test('getCategories liefert den vollen Kategorienbaum (10 Ober-, 33 Unterkategorien)', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);

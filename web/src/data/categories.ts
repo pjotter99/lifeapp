@@ -9,7 +9,8 @@ export interface Category {
   archived: number;
 }
 
-// Spiegelt GET /api/categories.
+// Ohne archivierte, in der im Seed festgelegten Reihenfolge — die Screens
+// zeigen den Baum genau so an, ohne selbst zu sortieren.
 export function getCategories(db: Database): Category[] {
   return queryAll<Category>(
     db,

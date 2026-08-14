@@ -38,7 +38,8 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Spiegelt GET /api/dashboard.
+// Alle Dashboard-Kennzahlen in einem Durchgang, damit die Zahlen garantiert
+// denselben Datenstand zeigen.
 export function getDashboard(db: Database): Dashboard {
   const currentMonth = today().slice(0, 7);
 

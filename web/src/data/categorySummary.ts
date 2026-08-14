@@ -35,7 +35,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Spiegelt GET /api/summary/categories: Ausgaben eines Monats nach Ober- und
+// Ausgaben eines Monats nach Ober- und
 // Unterkategorie, inkl. Einzelbuchungen — komplette Hierarchie in einem
 // Aufruf. Transfers und Einnahmen sind ausgeschlossen (nur amount_cents < 0).
 export function getCategorySummary(db: Database, month?: string): CategorySummary {

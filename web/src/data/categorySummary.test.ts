@@ -20,7 +20,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Spiegelt GET /api/summary/categories: leerer Monat.
+// Leerer Monat.
 test('getCategorySummary ist leer ohne Ausgaben', async () => {
   const db = await createTestDb();
   const summary = getCategorySummary(db, '2026-03');
@@ -28,7 +28,7 @@ test('getCategorySummary ist leer ohne Ausgaben', async () => {
   assert.deepEqual(summary, { month: '2026-03', total_cents: 0, categories: [] });
 });
 
-// Spiegelt GET /api/summary/categories: Default-Monat = heute, ohne Angabe.
+// Default-Monat = heute, ohne Angabe.
 test('getCategorySummary faellt ohne month auf den laufenden Monat zurueck', async () => {
   const db = await createTestDb();
   const summary = getCategorySummary(db);
@@ -36,13 +36,13 @@ test('getCategorySummary faellt ohne month auf den laufenden Monat zurueck', asy
   assert.equal(summary.month, today().slice(0, 7));
 });
 
-// Spiegelt GET /api/summary/categories -> 400 bei ungueltigem Monatsformat.
+// Ungueltiges Monatsformat wirft, statt einen leeren Monat vorzutaeuschen.
 test('getCategorySummary wirft bei ungueltigem Monatsformat', async () => {
   const db = await createTestDb();
   assert.throws(() => getCategorySummary(db, '2026-3'), /YYYY-MM/);
 });
 
-// Spiegelt GET /api/summary/categories: Gruppierung nach Oberkategorie,
+// Gruppierung nach Oberkategorie,
 // absteigend nach Betrag (SQL ORDER BY amount_cents ASC, negative Werte).
 test('getCategorySummary gruppiert nach Oberkategorie und sortiert absteigend nach Betrag', async () => {
   const db = await createTestDb();
@@ -63,7 +63,7 @@ test('getCategorySummary gruppiert nach Oberkategorie und sortiert absteigend na
   assert.equal(summary.total_cents, 12000);
 });
 
-// Spiegelt GET /api/summary/categories: Unterkategorien je Oberkategorie,
+// Unterkategorien je Oberkategorie,
 // ebenfalls absteigend nach Betrag sortiert.
 test('getCategorySummary liefert Unterkategorien absteigend nach Betrag', async () => {
   const db = await createTestDb();
@@ -83,7 +83,7 @@ test('getCategorySummary liefert Unterkategorien absteigend nach Betrag', async 
   );
 });
 
-// Spiegelt GET /api/summary/categories: Einzelbuchungen je Unterkategorie,
+// Einzelbuchungen je Unterkategorie,
 // neueste zuerst.
 test('getCategorySummary liefert Einzelbuchungen neueste zuerst', async () => {
   const db = await createTestDb();
@@ -101,7 +101,7 @@ test('getCategorySummary liefert Einzelbuchungen neueste zuerst', async () => {
   );
 });
 
-// Spiegelt GET /api/summary/categories: Transfers sind ausgeschlossen.
+// Transfers sind ausgeschlossen.
 test('getCategorySummary schliesst Transfers aus', async () => {
   const db = await createTestDb();
   const sparen = findCategory(getCategories(db), 'Sparen', 'Transfer');
@@ -113,7 +113,7 @@ test('getCategorySummary schliesst Transfers aus', async () => {
   assert.deepEqual(summary.categories, []);
 });
 
-// Spiegelt GET /api/summary/categories: Einnahmen sind ausgeschlossen
+// Einnahmen sind ausgeschlossen
 // (nur amount_cents < 0).
 test('getCategorySummary schliesst Einnahmen aus', async () => {
   const db = await createTestDb();
@@ -126,7 +126,7 @@ test('getCategorySummary schliesst Einnahmen aus', async () => {
   assert.deepEqual(summary.categories, []);
 });
 
-// Spiegelt GET /api/summary/categories: nur Buchungen des angefragten Monats.
+// Nur Buchungen des angefragten Monats.
 test('getCategorySummary ignoriert Buchungen ausserhalb des Monats', async () => {
   const db = await createTestDb();
   const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
@@ -139,7 +139,7 @@ test('getCategorySummary ignoriert Buchungen ausserhalb des Monats', async () =>
   assert.deepEqual(summary.categories, []);
 });
 
-// Spiegelt GET /api/summary/categories: Dezember-Monatsgrenze (Jahreswechsel).
+// Dezember-Monatsgrenze (Jahreswechsel).
 test('getCategorySummary behandelt den Jahreswechsel bei der Monatsgrenze korrekt', async () => {
   const db = await createTestDb();
   const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { getAccounts, updateAccount } from './accounts.ts';
 import { createTestDb } from './testDb.ts';
 
-// Spiegelt GET /api/accounts: das aus Migration 003 geseedete Girokonto,
+// Das aus Migration 003 geseedete Girokonto,
 // noch ohne Startsaldo/-datum.
 test('getAccounts liefert das aktive Girokonto mit Default-Startwerten', async () => {
   const db = await createTestDb();
@@ -16,7 +16,7 @@ test('getAccounts liefert das aktive Girokonto mit Default-Startwerten', async (
   assert.equal(accounts[0]!.opening_date, null);
 });
 
-// Spiegelt PATCH /api/accounts/:id: Startsaldo und -datum setzen.
+// Startsaldo und -datum setzen.
 test('updateAccount setzt Startsaldo und Startdatum', async () => {
   const db = await createTestDb();
   const [account] = getAccounts(db);
@@ -29,7 +29,7 @@ test('updateAccount setzt Startsaldo und Startdatum', async () => {
   assert.deepEqual(getAccounts(db)[0], updated);
 });
 
-// Spiegelt PATCH /api/accounts/:id: Teil-Update laesst andere Felder intakt.
+// Teil-Update laesst andere Felder intakt.
 test('updateAccount aktualisiert nur die angegebenen Felder', async () => {
   const db = await createTestDb();
   const [account] = getAccounts(db);
@@ -41,27 +41,29 @@ test('updateAccount aktualisiert nur die angegebenen Felder', async () => {
   assert.equal(updated.opening_date, '2026-02-01');
 });
 
-// Spiegelt PATCH /api/accounts/:id -> 404.
+// Unbekannte id wirft, statt still nichts zu tun.
 test('updateAccount wirft bei unbekannter id', async () => {
   const db = await createTestDb();
   assert.throws(() => updateAccount(db, 999999, { opening_balance_cents: 100 }), /nicht gefunden/);
 });
 
-// Spiegelt PATCH /api/accounts/:id -> 400 "Keine Aenderungen angegeben."
+// Leerer Input wirft — sonst wuerde ein Tippfehler im Aufruf unbemerkt
+// als Erfolg durchgehen.
 test('updateAccount wirft ohne Aenderungen', async () => {
   const db = await createTestDb();
   const [account] = getAccounts(db);
   assert.throws(() => updateAccount(db, account!.id, {}), /Keine Aenderungen/);
 });
 
-// Spiegelt PATCH /api/accounts/:id -> 400 bei ungueltigem Datum.
+// Ungueltiges Datum wirft: opening_date ist die untere Grenze jeder
+// Saldoberechnung und darf kein Muell enthalten.
 test('updateAccount wirft bei ungueltigem opening_date', async () => {
   const db = await createTestDb();
   const [account] = getAccounts(db);
   assert.throws(() => updateAccount(db, account!.id, { opening_date: '01.01.2026' }), /YYYY-MM-DD/);
 });
 
-// Spiegelt PATCH /api/accounts/:id: opening_date explizit auf null setzen.
+// opening_date laesst sich explizit auf null zuruecksetzen.
 test('updateAccount kann opening_date wieder auf null setzen', async () => {
   const db = await createTestDb();
   const [account] = getAccounts(db);

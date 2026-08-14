@@ -2,8 +2,8 @@ import type { Database } from 'sql.js';
 import type { MigrationFile } from './migrationTypes.ts';
 
 /**
- * Spiegelt server/src/migrate.ts: nummerierte .sql-Dateien, einmal
- * angewendet, in schema_migrations protokolliert. Jede Migration laeuft
+ * Nummerierte .sql-Dateien aus migrations/, einmal angewendet und in
+ * schema_migrations protokolliert. Jede Migration laeuft
  * komplett oder gar nicht (BEGIN/COMMIT/ROLLBACK per Hand — sql.js kennt
  * kein eingebautes db.transaction() wie better-sqlite3).
  *

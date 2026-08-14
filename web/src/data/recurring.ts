@@ -67,7 +67,8 @@ export function monthlyEquivalentCents(amountCents: number, interval: RecurringI
   return amountCents;
 }
 
-// Spiegelt GET /api/recurring.
+// Mit Kategorienamen, sortiert nach Art, aktiv und Name — die Reihenfolge,
+// in der /stammdaten sie gruppiert anzeigt.
 export function getRecurring(db: Database): RecurringListItem[] {
   return queryAll<RecurringListItem>(
     db,
@@ -78,8 +79,8 @@ export function getRecurring(db: Database): RecurringListItem[] {
   );
 }
 
-// Spiegelt POST /api/recurring. Wirft bei denselben Bedingungen, unter denen
-// die Route 400 zurueckgab.
+// Validiert Name, Betrag, Kategorie und Startdatum, bevor etwas geschrieben
+// wird, und wirft mit einer anzeigbaren Meldung.
 export function createRecurring(db: Database, input: CreateRecurringInput): Recurring {
   if (typeof input.name !== 'string' || input.name.trim() === '') {
     throw new Error('name fehlt.');
@@ -160,8 +161,8 @@ export function createRecurring(db: Database, input: CreateRecurringInput): Recu
   return queryOne<Recurring>(db, 'SELECT * FROM recurring WHERE id = ?', [lastInsertRowId(db)])!;
 }
 
-// Spiegelt PATCH /api/recurring/:id. Wirft bei denselben Bedingungen, unter
-// denen die Route 400/404 zurueckgab.
+// Teil-Update: nur mitgegebene Felder aendern sich. Wirft bei unbekannter id
+// und leerem Input.
 export function updateRecurring(db: Database, id: number, input: UpdateRecurringInput): RecurringListItem {
   const existing = queryOne<Recurring>(db, 'SELECT * FROM recurring WHERE id = ?', [id]);
   if (!existing) {

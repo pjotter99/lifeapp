@@ -22,7 +22,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Spiegelt GET /api/savings-goal/current: das mit dem juengsten
+// Das Ziel mit dem juengsten
 // active_from <= heute — ein aktives Ziel zur Zeit (CLAUDE.md).
 export function getCurrentSavingsGoal(db: Database): SavingsGoal | null {
   const row = queryOne<SavingsGoal>(
@@ -32,9 +32,9 @@ export function getCurrentSavingsGoal(db: Database): SavingsGoal | null {
   return row ?? null;
 }
 
-// Spiegelt POST /api/savings-goal. Zieländerung = neuer Eintrag, der alte
-// bleibt bestehen (CLAUDE.md). Wirft bei denselben Bedingungen, unter denen
-// die Route 400 zurueckgab.
+// Zieländerung = neuer Eintrag, der alte bleibt bestehen (CLAUDE.md), damit
+// die Historie erhalten bleibt. Wirft bei ungueltigem mode, fehlendem Wert
+// zum gewaehlten mode und ungueltigem active_from.
 export function createSavingsGoal(db: Database, input: CreateSavingsGoalInput): SavingsGoal {
   if (input.mode !== 'amount' && input.mode !== 'percent') {
     throw new Error("mode muss 'amount' oder 'percent' sein.");

@@ -17,7 +17,7 @@ export interface UpdateAccountInput {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Spiegelt GET /api/accounts.
+// Nur aktive Konten, stabil nach id sortiert.
 export function getAccounts(db: Database): Account[] {
   return queryAll<Account>(
     db,
@@ -25,9 +25,9 @@ export function getAccounts(db: Database): Account[] {
   );
 }
 
-// Spiegelt PATCH /api/accounts/:id. Wirft bei denselben Bedingungen, unter
-// denen die Route 400/404 zurueckgab — der Aufrufer entscheidet, wie er
-// den Fehler anzeigt (die Route uebersetzte ihn 1:1 in eine HTTP-Antwort).
+// Teil-Update: nur mitgegebene Felder aendern sich. Wirft bei unbekannter
+// id, leerem Input und ungueltigem Datum — der Aufrufer entscheidet, wie
+// er den Fehler anzeigt.
 export function updateAccount(db: Database, id: number, input: UpdateAccountInput): Account {
   const existing = queryOne<Account>(db, 'SELECT * FROM accounts WHERE id = ?', [id]);
   if (!existing) {

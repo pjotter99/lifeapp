@@ -28,7 +28,7 @@ function currentMonth(): string {
   return today().slice(0, 7);
 }
 
-// Spiegelt GET /api/dashboard: ohne Startdatum kein berechenbarer Kontostand.
+// Ohne Startdatum kein berechenbarer Kontostand.
 test('getDashboard: balance.available ist false ohne opening_date', async () => {
   const db = await createTestDb();
   const dashboard = getDashboard(db);
@@ -38,7 +38,7 @@ test('getDashboard: balance.available ist false ohne opening_date', async () => 
   assert.equal(dashboard.available_until_month_end_cents, null);
 });
 
-// Spiegelt GET /api/dashboard: Kontostand = opening_balance_cents + Summe
+// Kontostand = opening_balance_cents + Summe
 // der Buchungen ab opening_date.
 test('getDashboard berechnet den Kontostand aus Startsaldo und Buchungen', async () => {
   const db = await createTestDb();
@@ -55,7 +55,7 @@ test('getDashboard berechnet den Kontostand aus Startsaldo und Buchungen', async
   assert.equal(dashboard.balance.balance_cents, 95000);
 });
 
-// Spiegelt GET /api/dashboard: Buchungen vor opening_date zaehlen nicht mit.
+// Buchungen vor opening_date zaehlen nicht mit.
 test('getDashboard ignoriert Buchungen vor opening_date', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -70,7 +70,7 @@ test('getDashboard ignoriert Buchungen vor opening_date', async () => {
   assert.equal(dashboard.balance.balance_cents, 100000);
 });
 
-// Spiegelt GET /api/dashboard: anstehende Fixkosten diesen Monat, negativer Betrag.
+// Anstehende Fixkosten diesen Monat, negativer Betrag.
 test('getDashboard listet faellige aktive Fixkosten dieses Monats', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -91,7 +91,7 @@ test('getDashboard listet faellige aktive Fixkosten dieses Monats', async () => 
   assert.equal(dashboard.upcoming_fixed_costs[0]!.amount_cents, -6000);
 });
 
-// Spiegelt GET /api/dashboard: bereits gebuchte Periode taucht nicht mehr
+// Bereits gebuchte Periode taucht nicht mehr
 // unter "anstehend" auf (NOT EXISTS gegen transactions.period).
 test('getDashboard blendet bereits gebuchte Fixkosten dieser Periode aus', async () => {
   const db = await createTestDb();
@@ -119,7 +119,7 @@ test('getDashboard blendet bereits gebuchte Fixkosten dieser Periode aus', async
   assert.equal(dashboard.upcoming_fixed_costs.length, 0);
 });
 
-// Spiegelt GET /api/dashboard: beendete (inaktive) Fixkosten sind nicht anstehend.
+// Beendete (inaktive) Fixkosten sind nicht anstehend.
 test('getDashboard ignoriert beendete Fixkosten', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -139,7 +139,7 @@ test('getDashboard ignoriert beendete Fixkosten', async () => {
   assert.equal(dashboard.upcoming_fixed_costs.length, 0);
 });
 
-// Spiegelt GET /api/dashboard: Sparrate erreicht = Summe der Transfer-Buchungen
+// Sparrate erreicht = Summe der Transfer-Buchungen
 // diesen Monat, absolut.
 test('getDashboard summiert erreichte Sparrate aus Transfer-Buchungen', async () => {
   const db = await createTestDb();
@@ -152,7 +152,7 @@ test('getDashboard summiert erreichte Sparrate aus Transfer-Buchungen', async ()
   assert.equal(dashboard.savings_rate.achieved_cents, 20000);
 });
 
-// Spiegelt GET /api/dashboard: Sparziel mode='amount'.
+// Sparziel mode='amount'.
 test('getDashboard uebernimmt ein Betragsziel unveraendert', async () => {
   const db = await createTestDb();
   createSavingsGoal(db, { mode: 'amount', monthly_target_cents: 50000, active_from: '2020-01-01' });
@@ -164,7 +164,7 @@ test('getDashboard uebernimmt ein Betragsziel unveraendert', async () => {
   assert.equal(dashboard.savings_rate.basis_cents, null);
 });
 
-// Spiegelt GET /api/dashboard: Sparziel mode='percent' — Basis ist das
+// Sparziel mode='percent' — Basis ist das
 // reguläre Nettogehalt (aktive kind='income'-recurring ohne "Sonderzahlung").
 test('getDashboard berechnet ein Prozentziel auf Basis des regulaeren Nettogehalts', async () => {
   const db = await createTestDb();
@@ -197,7 +197,7 @@ test('getDashboard berechnet ein Prozentziel auf Basis des regulaeren Nettogehal
   assert.equal(dashboard.savings_rate.target_percent, 10);
 });
 
-// Spiegelt GET /api/dashboard: "Verfuegbar bis Monatsende" = Kontostand +
+// "Verfuegbar bis Monatsende" = Kontostand +
 // anstehende Fixkosten (negativ) - noch fehlende Sparrate.
 test('getDashboard berechnet "Verfuegbar bis Monatsende" korrekt', async () => {
   const db = await createTestDb();
@@ -222,7 +222,7 @@ test('getDashboard berechnet "Verfuegbar bis Monatsende" korrekt', async () => {
   assert.equal(dashboard.available_until_month_end_cents, 200000 - 6000 - 50000);
 });
 
-// Spiegelt GET /api/dashboard: Ausgaben diesen Monat, Transfers und Einnahmen ausgeschlossen.
+// Ausgaben diesen Monat, Transfers und Einnahmen ausgeschlossen.
 test('getDashboard summiert Ausgaben diesen Monat ohne Transfers und Einnahmen', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -239,7 +239,7 @@ test('getDashboard summiert Ausgaben diesen Monat ohne Transfers und Einnahmen',
   assert.equal(dashboard.expenses_this_month_cents, -5000);
 });
 
-// Spiegelt GET /api/dashboard: "Nicht erfasst" diesen Monat aus dem
+// "Nicht erfasst" diesen Monat aus dem
 // Saldo-Abgleich (Kategorie Sonstiges > Nicht erfasst).
 test('getDashboard summiert "Nicht erfasst" diesen Monat', async () => {
   const db = await createTestDb();

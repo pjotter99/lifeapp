@@ -18,13 +18,13 @@ function findCategory(categories: Category[], name: string, parentName?: string)
   return match;
 }
 
-// Spiegelt GET /api/recurring: leer ohne Eintraege.
+// Leer ohne Eintraege.
 test('getRecurring ist leer ohne Eintraege', async () => {
   const db = await createTestDb();
   assert.deepEqual(getRecurring(db), []);
 });
 
-// Spiegelt POST /api/recurring: Ausgabe wird negativ gespeichert, next_due
+// Ausgabe wird negativ gespeichert, next_due
 // folgt start_date, day_of_month wird abgeleitet.
 test('createRecurring legt eine Ausgabe mit negativem Betrag an', async () => {
   const db = await createTestDb();
@@ -46,7 +46,7 @@ test('createRecurring legt eine Ausgabe mit negativem Betrag an', async () => {
   assert.equal(created.kind, 'expense');
 });
 
-// Spiegelt POST /api/recurring: Einnahme wird positiv gespeichert.
+// Einnahme wird positiv gespeichert.
 test('createRecurring legt eine Einnahme mit positivem Betrag an', async () => {
   const db = await createTestDb();
   const gehalt = findCategory(getCategories(db), 'Gehalt', 'Einnahmen');
@@ -63,7 +63,7 @@ test('createRecurring legt eine Einnahme mit positivem Betrag an', async () => {
   assert.equal(created.amount_cents, 300000);
 });
 
-// Spiegelt GET /api/recurring: category_name mitgeliefert, ueber kind/active/name sortiert.
+// category_name mitgeliefert, ueber kind/active/name sortiert.
 test('getRecurring liefert category_name und sortiert nach kind, active, name', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -79,7 +79,8 @@ test('getRecurring liefert category_name und sortiert nach kind, active, name', 
   assert.equal(list[0]!.category_name, 'Strom');
 });
 
-// Spiegelt POST /api/recurring -> 400 bei Tag > 28 im Startdatum.
+// Tag > 28 im Startdatum wirft — hoehere Werte gibt es nicht in jedem
+// Monat (CLAUDE.md).
 test('createRecurring wirft bei Tag > 28 im Startdatum', async () => {
   const db = await createTestDb();
   const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
@@ -98,7 +99,7 @@ test('createRecurring wirft bei Tag > 28 im Startdatum', async () => {
   );
 });
 
-// Spiegelt POST /api/recurring -> 400 bei unbekannter Kategorie.
+// Unbekannte Kategorie wirft.
 test('createRecurring wirft bei unbekannter Kategorie', async () => {
   const db = await createTestDb();
   assert.throws(
@@ -115,7 +116,8 @@ test('createRecurring wirft bei unbekannter Kategorie', async () => {
   );
 });
 
-// Spiegelt POST /api/recurring -> 400 bei nicht-positivem Betrag.
+// Nicht-positiver Betrag wirft: das Vorzeichen leitet sich aus kind ab,
+// nicht aus der Eingabe.
 test('createRecurring wirft bei nicht-positivem amount_cents', async () => {
   const db = await createTestDb();
   const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');
@@ -133,7 +135,7 @@ test('createRecurring wirft bei nicht-positivem amount_cents', async () => {
   );
 });
 
-// Spiegelt PATCH /api/recurring/:id: active=0 beendet die Serie, bestehende
+// active=0 beendet die Serie, bestehende
 // Buchungen bleiben unberuehrt (Abo-Kuendigen-Mechanismus laut CLAUDE.md).
 test('updateRecurring kann eine Serie beenden', async () => {
   const db = await createTestDb();
@@ -152,7 +154,7 @@ test('updateRecurring kann eine Serie beenden', async () => {
   assert.equal(updated.active, 0);
 });
 
-// Spiegelt PATCH /api/recurring/:id: kind wechselt, Betrag ohne
+// kind wechselt, Betrag ohne
 // mitgeschickten amount_cents behaelt seinen Betrag, Vorzeichen passt sich an.
 test('updateRecurring passt Vorzeichen an, wenn nur kind geaendert wird', async () => {
   const db = await createTestDb();
@@ -174,7 +176,7 @@ test('updateRecurring passt Vorzeichen an, wenn nur kind geaendert wird', async 
   assert.equal(updated.kind, 'income');
 });
 
-// Spiegelt PATCH /api/recurring/:id: start_date-Aenderung zieht next_due
+// start_date-Aenderung zieht next_due
 // und day_of_month mit.
 test('updateRecurring aktualisiert next_due und day_of_month mit start_date', async () => {
   const db = await createTestDb();
@@ -194,13 +196,13 @@ test('updateRecurring aktualisiert next_due und day_of_month mit start_date', as
   assert.equal(updated.day_of_month, 10);
 });
 
-// Spiegelt PATCH /api/recurring/:id -> 404.
+// Unbekannte id wirft.
 test('updateRecurring wirft bei unbekannter id', async () => {
   const db = await createTestDb();
   assert.throws(() => updateRecurring(db, 999999, { active: 0 }), /Nicht gefunden/);
 });
 
-// Spiegelt PATCH /api/recurring/:id -> 400 ohne Aenderungen.
+// Leerer Input wirft.
 test('updateRecurring wirft ohne Aenderungen', async () => {
   const db = await createTestDb();
   const strom = findCategory(getCategories(db), 'Strom', 'Wohnen');

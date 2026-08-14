@@ -49,8 +49,8 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Spiegelt GET /api/transactions?limit=. limit begrenzt wie bei der Route
-// auf 1-100, Default 10.
+// limit wird auf 1-100 gedeckelt, Default 10 — die Liste auf /erfassen
+// zeigt nur die letzten Buchungen, nie die ganze Tabelle.
 export function getTransactions(db: Database, limit?: number): TransactionListItem[] {
   const parsed = limit ?? 10;
   const clamped = Number.isFinite(parsed) ? Math.min(Math.max(Math.trunc(parsed), 1), 100) : 10;
@@ -66,7 +66,7 @@ export function getTransactions(db: Database, limit?: number): TransactionListIt
   );
 }
 
-// Spiegelt GET /api/summary/month. Transfers zaehlen nicht mit (CLAUDE.md:
+// Transfers zaehlen nicht mit (CLAUDE.md:
 // "Die Sparrate ist ein Transfer, keine Ausgabe").
 export function getMonthSummary(db: Database): MonthSummary {
   const row = queryOne<{ income_cents: number; expense_cents: number }>(
@@ -87,9 +87,9 @@ export function getMonthSummary(db: Database): MonthSummary {
   };
 }
 
-// Spiegelt POST /api/transactions, inklusive Vorzeichen- und
-// Transfer-Ableitung aus der (Ober-)Kategorie. Wirft bei denselben
-// Bedingungen, unter denen die Route 400 zurueckgab.
+// Leitet Vorzeichen und is_transfer aus der (Ober-)Kategorie ab, statt sie
+// vom Aufrufer zu uebernehmen — so kann kein Screen die Regeln aus CLAUDE.md
+// umgehen. Wirft bei ungueltigem Betrag, Datum, Konto oder Kategorie.
 export function createTransaction(db: Database, input: CreateTransactionInput): Transaction {
   if (!Number.isInteger(input.amount_cents) || input.amount_cents <= 0) {
     throw new Error('amount_cents muss eine positive Ganzzahl (Cent) sein.');
@@ -163,8 +163,8 @@ export function createTransaction(db: Database, input: CreateTransactionInput): 
   return queryOne<Transaction>(db, 'SELECT * FROM transactions WHERE id = ?', [lastInsertRowId(db)])!;
 }
 
-// Spiegelt DELETE /api/transactions/:id. Wirft, wenn keine Zeile betroffen
-// war (die Route antwortete dort mit 404).
+// Wirft, wenn keine Zeile betroffen war — ein stilles No-op wuerde dem
+// Aufrufer ein erfolgreiches Loeschen vortaeuschen.
 export function deleteTransaction(db: Database, id: number): void {
   const { changes } = execRun(db, 'DELETE FROM transactions WHERE id = ?', [id]);
   if (changes === 0) {

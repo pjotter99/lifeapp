@@ -20,7 +20,7 @@ function todayIso(): string {
 
 // --- createTransaction ------------------------------------------------
 
-// Spiegelt POST /api/transactions: Eingabe positiv, gespeichert negativ,
+// Eingabe positiv, gespeichert negativ,
 // ausser die Kategorie gehoert zu "Einnahmen". source/category_locked
 // wie bei der Route hart codiert.
 test('createTransaction speichert Ausgaben negativ', async () => {
@@ -49,7 +49,7 @@ test('createTransaction speichert Einnahmen positiv', async () => {
   assert.equal(tx.amount_cents, 250000);
 });
 
-// Spiegelt die is_transfer-Ableitung: Oberkategorie "Transfer" setzt das
+// is_transfer wird abgeleitet, nicht uebergeben: Oberkategorie "Transfer" setzt das
 // Flag, unabhaengig vom Vorzeichen.
 test('createTransaction setzt is_transfer=1 fuer die Transfer-Kategorie', async () => {
   const db = await createTestDb();
@@ -82,7 +82,7 @@ test('createTransaction respektiert ein explizit angegebenes date', async () => 
   assert.equal(tx.date, '2026-03-15');
 });
 
-// Spiegelt das Notiz-Feld: getrimmt gespeichert, leer/whitespace wird null.
+// Notiz wird getrimmt gespeichert, leer/whitespace wird null.
 test('createTransaction speichert eine Notiz getrimmt', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -140,7 +140,7 @@ test('createTransaction wirft bei unbekanntem account_id', async () => {
 
 // --- getTransactions ----------------------------------------------------
 
-// Spiegelt GET /api/transactions?limit=: neueste zuerst, category_name gejoint.
+// neueste zuerst, category_name gejoint.
 test('getTransactions liefert neueste zuerst mit Kategorienamen', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -157,7 +157,7 @@ test('getTransactions liefert neueste zuerst mit Kategorienamen', async () => {
   assert.equal(rows[1]!.category_name, 'Einkauf');
 });
 
-// Spiegelt GET /api/transactions?limit=: Default 10, Obergrenze 100.
+// Default 10, Obergrenze 100.
 test('getTransactions begrenzt limit auf 1-100 und faellt ohne Angabe auf 10 zurueck', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
@@ -184,7 +184,7 @@ test('deleteTransaction entfernt die Buchung', async () => {
   assert.equal(getTransactions(db).length, 0);
 });
 
-// Spiegelt DELETE /api/transactions/:id -> 404.
+// Unbekannte id wirft, statt still nichts zu loeschen.
 test('deleteTransaction wirft, wenn nichts geloescht wurde', async () => {
   const db = await createTestDb();
   assert.throws(() => deleteTransaction(db, 999999), /nicht gefunden/);
@@ -192,7 +192,7 @@ test('deleteTransaction wirft, wenn nichts geloescht wurde', async () => {
 
 // --- getMonthSummary ------------------------------------------------------
 
-// Spiegelt GET /api/summary/month: Einnahmen/Ausgaben/Saldo des laufenden
+// Einnahmen/Ausgaben/Saldo des laufenden
 // Monats, Transfers zaehlen nicht mit. date('now', ...) in der Query ist
 // nicht injizierbar, deshalb wird mit dem echten aktuellen Monat gesät.
 test('getMonthSummary summiert Einnahmen/Ausgaben des laufenden Monats ohne Transfers', async () => {

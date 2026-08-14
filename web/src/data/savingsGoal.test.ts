@@ -3,13 +3,13 @@ import test from 'node:test';
 import { createSavingsGoal, getCurrentSavingsGoal } from './savingsGoal.ts';
 import { createTestDb } from './testDb.ts';
 
-// Spiegelt GET /api/savings-goal/current: null ohne Ziel.
+// Ohne gesetztes Ziel kommt null zurueck.
 test('getCurrentSavingsGoal ist null ohne Ziel', async () => {
   const db = await createTestDb();
   assert.equal(getCurrentSavingsGoal(db), null);
 });
 
-// Spiegelt POST /api/savings-goal mit mode='amount'.
+// mode='amount' setzt monthly_target_cents, target_percent bleibt null.
 test('createSavingsGoal legt ein Betragsziel an', async () => {
   const db = await createTestDb();
   const goal = createSavingsGoal(db, { mode: 'amount', monthly_target_cents: 50000, active_from: '2026-01-01' });
@@ -20,7 +20,7 @@ test('createSavingsGoal legt ein Betragsziel an', async () => {
   assert.equal(goal.active_from, '2026-01-01');
 });
 
-// Spiegelt POST /api/savings-goal mit mode='percent'.
+// mode='percent' setzt target_percent, monthly_target_cents bleibt null.
 test('createSavingsGoal legt ein Prozentziel an', async () => {
   const db = await createTestDb();
   const goal = createSavingsGoal(db, { mode: 'percent', target_percent: 15.5, active_from: '2026-01-01' });
@@ -30,7 +30,7 @@ test('createSavingsGoal legt ein Prozentziel an', async () => {
   assert.equal(goal.monthly_target_cents, null);
 });
 
-// Spiegelt POST /api/savings-goal: active_from default = heute.
+// active_from default = heute.
 test('createSavingsGoal setzt active_from standardmaessig auf heute', async () => {
   const db = await createTestDb();
   const goal = createSavingsGoal(db, { mode: 'amount', monthly_target_cents: 50000 });
@@ -39,7 +39,7 @@ test('createSavingsGoal setzt active_from standardmaessig auf heute', async () =
   assert.equal(goal.active_from, today);
 });
 
-// Spiegelt GET /api/savings-goal/current: das juengste Ziel mit
+// Das juengste Ziel mit
 // active_from <= heute gewinnt, Historie bleibt erhalten.
 test('getCurrentSavingsGoal liefert das juengste aktive Ziel, alte bleiben bestehen', async () => {
   const db = await createTestDb();
@@ -52,7 +52,7 @@ test('getCurrentSavingsGoal liefert das juengste aktive Ziel, alte bleiben beste
   assert.equal(current!.monthly_target_cents, 70000);
 });
 
-// Spiegelt GET /api/savings-goal/current: ein Ziel in der Zukunft zaehlt noch nicht.
+// Ein Ziel in der Zukunft zaehlt noch nicht.
 test('getCurrentSavingsGoal ignoriert Ziele mit active_from in der Zukunft', async () => {
   const db = await createTestDb();
   const past = createSavingsGoal(db, { mode: 'amount', monthly_target_cents: 50000, active_from: '2025-01-01' });
@@ -63,7 +63,7 @@ test('getCurrentSavingsGoal ignoriert Ziele mit active_from in der Zukunft', asy
   assert.equal(current!.id, past.id);
 });
 
-// Spiegelt POST /api/savings-goal -> 400 bei ungueltigem mode.
+// Ungueltiger mode wirft.
 test('createSavingsGoal wirft bei ungueltigem mode', async () => {
   const db = await createTestDb();
   assert.throws(
@@ -72,19 +72,20 @@ test('createSavingsGoal wirft bei ungueltigem mode', async () => {
   );
 });
 
-// Spiegelt POST /api/savings-goal -> 400 bei fehlendem monthly_target_cents in mode='amount'.
+// mode='amount' ohne monthly_target_cents wirft — der CHECK im Schema
+// verlangt genau einen der beiden Werte.
 test('createSavingsGoal wirft bei mode=amount ohne monthly_target_cents', async () => {
   const db = await createTestDb();
   assert.throws(() => createSavingsGoal(db, { mode: 'amount' }), /monthly_target_cents/);
 });
 
-// Spiegelt POST /api/savings-goal -> 400 bei fehlendem target_percent in mode='percent'.
+// mode='percent' ohne target_percent wirft, aus demselben Grund.
 test('createSavingsGoal wirft bei mode=percent ohne target_percent', async () => {
   const db = await createTestDb();
   assert.throws(() => createSavingsGoal(db, { mode: 'percent' }), /target_percent/);
 });
 
-// Spiegelt POST /api/savings-goal -> 400 bei ungueltigem active_from.
+// Ungueltiges active_from wirft: das Datum entscheidet, welches Ziel gilt.
 test('createSavingsGoal wirft bei ungueltigem active_from', async () => {
   const db = await createTestDb();
   assert.throws(

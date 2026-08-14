@@ -16,9 +16,9 @@ export function loadMigrationFilesFromDisk(): MigrationFile[] {
     .map((file) => ({ file, sql: readFileSync(resolve(dir, file), 'utf8') }));
 }
 
-// Frische In-Memory-sql.js-DB mit allen Migrationen — dieselbe Schema-Quelle
-// wie die App und wie server/src/recurringJob.test.ts, nur ueber sql.js
-// statt better-sqlite3, weil das die Engine ist, die web/src/data/ nutzt.
+// Frische In-Memory-sql.js-DB mit allen Migrationen aus migrations/ —
+// dieselbe Schema-Quelle wie die App, ueber dieselbe Engine. Tests laufen
+// damit gegen das echte Schema statt gegen ein nachgebautes.
 export async function createTestDb(): Promise<Database> {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
