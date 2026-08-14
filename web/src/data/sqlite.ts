@@ -20,18 +20,18 @@ function getSqlJs(): ReturnType<typeof initSqlJs> {
 
 let dbPromise: Promise<Database> | null = null;
 let readyPromise: Promise<Database> | null = null;
-let loadedFromIndexedDb = false;
 
 async function initDb(): Promise<Database> {
   const SQL = await getSqlJs();
   const existing = await loadPersistedDb();
-  loadedFromIndexedDb = existing !== null;
   return existing ? new SQL.Database(existing) : new SQL.Database();
 }
 
 // Einmal initialisiert, danach immer dieselbe Instanz — Promise gecacht,
 // damit gleichzeitige Aufrufe (z. B. React StrictMode) nicht zweimal laden.
-export function getDb(): Promise<Database> {
+// Modulintern: Screens nehmen getReadyDb(), das zusaetzlich Migrationen und
+// den Recurring-Job abwartet.
+function getDb(): Promise<Database> {
   if (!dbPromise) dbPromise = initDb();
   return dbPromise;
 }
@@ -43,12 +43,6 @@ export function getDb(): Promise<Database> {
 export async function openDatabaseFromBytes(bytes: Uint8Array): Promise<Database> {
   const SQL = await getSqlJs();
   return new SQL.Database(bytes);
-}
-
-// True, sobald getDb() einmal aufgeloest hat: kam der Stand aus IndexedDB
-// (wiederkehrender Besuch) oder ist es eine frische, leere Datenbank.
-export function wasLoadedFromIndexedDb(): boolean {
-  return loadedFromIndexedDb;
 }
 
 // Nach jeder schreibenden Operation aufrufen, nicht nach jeder Query.
