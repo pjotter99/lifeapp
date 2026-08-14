@@ -6,14 +6,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
 }
 
+// Rechteckig, transparenter Grund, 1px Rahmen, Monospace-Versalien. Keine
+// gefuellten Farbflaechen mehr — Farbe steckt im Rahmen und im Text.
 const base =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium ' +
-  'transition-[filter,background-color,border-color] duration-150 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-control border px-4 ' +
+  'font-mono text-xs uppercase tracking-[0.12em] ' +
+  'transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-accent text-on-accent enabled:hover:brightness-110 enabled:active:brightness-95',
-  secondary: 'border border-border bg-surface-2 text-text enabled:hover:border-accent',
-  danger: 'bg-negative text-on-accent enabled:hover:brightness-110 enabled:active:brightness-95',
+  // 12% Deckkraft statt gefuellter Flaeche — hebt den Primaerbutton ab, ohne
+  // dass Cyan zur Inhaltsfarbe wird.
+  primary: 'border-accent bg-accent/12 text-accent enabled:hover:bg-accent/20',
+  secondary: 'border-border text-text-dim enabled:hover:border-border-lit enabled:hover:text-text',
+  danger: 'border-negative bg-negative/12 text-negative enabled:hover:bg-negative/20',
 };
 
 export function Button({ variant = 'primary', className = '', ...props }: ButtonProps) {

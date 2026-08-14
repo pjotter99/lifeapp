@@ -41,15 +41,20 @@ function useKeyboardOpen(): boolean {
   return keyboardOpen;
 }
 
-export function BottomTabBar() {
-  const path = typeof window !== 'undefined' ? currentRoute() : '';
+interface BottomTabBarProps {
+  /** Nur fuer den Styleguide: erzwingt einen aktiven Tab. Sonst die echte Route. */
+  activeRoute?: string;
+}
+
+export function BottomTabBar({ activeRoute }: BottomTabBarProps = {}) {
+  const path = activeRoute ?? (typeof window !== 'undefined' ? currentRoute() : '');
   const keyboardOpen = useKeyboardOpen();
 
   if (keyboardOpen) return null;
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-surface"
+      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-bg-deep"
       style={{ height: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom))', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {TABS.map((tab) => {
@@ -58,7 +63,20 @@ export function BottomTabBar() {
           <a
             key={tab.href}
             href={routeHref(tab.href)}
-            className={`flex flex-1 flex-col items-center justify-center text-xs ${active ? 'font-semibold text-accent' : 'text-text-dim'}`}
+            // Der 2px-Strich des aktiven Tabs sitzt auf der Oberkante und
+            // ueberdeckt dort die 1px-Trennlinie der Leiste.
+            //
+            // Buchstabenabstand 0.06em statt der sonst ueblichen 0.12em, und
+            // der nachlaufende Abstand hinter dem letzten Zeichen wird per
+            // negativem Margin abgezogen: "Einstellungen" fuellt bei 0.12em
+            // einen 375px-Viewport exakt randlos aus und liefe auf schmaleren
+            // Geraeten aus dem Tab heraus.
+            className={
+              'relative -me-[0.06em] flex flex-1 flex-col items-center justify-center font-mono text-[10px] uppercase tracking-[0.06em] ' +
+              (active
+                ? 'text-accent before:absolute before:inset-x-0 before:-top-px before:h-0.5 before:bg-accent'
+                : 'text-text-dim')
+            }
           >
             {tab.label}
           </a>

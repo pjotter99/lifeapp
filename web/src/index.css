@@ -9,44 +9,61 @@
 @import '@fontsource/jetbrains-mono/600.css';
 
 :root {
-  --bg: #15171b;
-  --surface: #1d2026;
-  --surface-2: #24282f;
-  --border: #2a2e37;
-  --text: #e8eaed;
-  --text-dim: #8b929e;
+  --bg: #070b10;
+  --bg-deep: #04060a;
+  --surface: #0c1219;
+  --surface-2: #121a24;
+  --border: #1b2733;
+  --border-lit: #2e4a5c;
+  --accent: #4dd8e0;
+  --accent-dim: #1f5c63;
+  --text: #d6e4ec;
+  --text-dim: #6b8494;
+  --text-mono: #8fa9b8;
   --positive: #4ade80;
   --negative: #f87171;
-  --accent: #7c8cf8;
+  --warn: #e8a33d;
 
-  /* Text auf hellen, gesaettigten Flaechen (accent/negative als Button-Bg) —
-     dunkler Text kontrastiert dort zuverlaessiger als heller. */
-  --on-accent: var(--bg);
+  /* Text auf den wenigen verbliebenen gefuellten Flaechen (Swipe-to-delete in
+     TransactionRow) — dunkler Text kontrastiert dort zuverlaessiger als
+     heller. Buttons und Chips sind seit dem HUD-Umbau nicht mehr gefuellt. */
+  --on-accent: var(--bg-deep);
 
   /* Intrinsische Hoehe der BottomTabBar (ohne Safe-Area-Anteil) — als
      Variable, damit Screen-Padding und fixe Elemente (z. B. Toast) nicht
      unabhaengig voneinander nachgepflegt werden muessen. */
   --tabbar-height: 64px;
+
+  /* Laenge der L-foermigen Eckwinkel am Panel und ihr Abstand zum Rand. */
+  --panel-corner: 12px;
+  --panel-corner-inset: 6px;
 }
 
 @theme {
   --color-bg: var(--bg);
+  --color-bg-deep: var(--bg-deep);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-border-lit: var(--border-lit);
   --color-text: var(--text);
   --color-text-dim: var(--text-dim);
+  --color-text-mono: var(--text-mono);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
+  --color-warn: var(--warn);
   --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
   --color-on-accent: var(--on-accent);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* Radius 14px durchgehend, 20px nur bei Karten. */
-  --radius-md: 14px;
-  --radius-card: 20px;
+  /* Kantig statt rund: 4px am Panel, 3px an Bedienelementen. --radius-md
+     bleibt definiert, weil Screens (TransactionRow) noch darauf zeigen. */
+  --radius-panel: 4px;
+  --radius-control: 3px;
+  --radius-md: 3px;
 }
 
 @layer base {
@@ -55,7 +72,12 @@
   }
 
   body {
-    background-color: var(--bg);
+    /* Radiale Vignette: --bg in der Mitte, --bg-deep an den Raendern.
+       background-attachment:fixed, damit sie beim Scrollen nicht mitwandert
+       und lange Seiten nicht mehrfach abdunkeln. */
+    background-color: var(--bg-deep);
+    background-image: radial-gradient(ellipse 120% 90% at 50% 35%, var(--bg) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
     color: var(--text);
     font-family: var(--font-sans);
     /* Notch/Home-Indicator: braucht viewport-fit=cover (index.html) plus
@@ -81,6 +103,80 @@
 .tabular-amount {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Sektionstitel und Labels: Monospace-Versalien mit weitem Buchstabenabstand.
+   Der doppelte Schraegstrich vor Paneltiteln steht im Markup, nicht hier —
+   er ist Text, kein Dekor, und soll im Accessibility-Baum auftauchen. */
+.hud-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mono);
+}
+
+.hud-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Eckwinkel des Panels: ein einziges Pseudo-Element mit umlaufendem Rahmen,
+   von dem eine Maske nur je ein Quadrat an den vier Ecken freilegt. Dadurch
+   bleiben genau die L-Formen stehen — ohne vier zusaetzliche Elemente und
+   ohne dass die Laenge pro Ecke einzeln gepflegt werden muss. */
+.hud-panel::after {
+  content: '';
+  position: absolute;
+  inset: var(--panel-corner-inset);
+  border: 1px solid var(--accent-dim);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) top left,
+    linear-gradient(#000 0 0) top right,
+    linear-gradient(#000 0 0) bottom left,
+    linear-gradient(#000 0 0) bottom right;
+  -webkit-mask-size: var(--panel-corner) var(--panel-corner);
+  -webkit-mask-repeat: no-repeat;
+  mask:
+    linear-gradient(#000 0 0) top left,
+    linear-gradient(#000 0 0) top right,
+    linear-gradient(#000 0 0) bottom left,
+    linear-gradient(#000 0 0) bottom right;
+  mask-size: var(--panel-corner) var(--panel-corner);
+  mask-repeat: no-repeat;
+}
+
+/* Panels blenden beim Erscheinen leicht von unten ein; der Versatz pro Panel
+   kommt als --panel-delay aus der Komponente. */
+@keyframes hud-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.hud-panel-in {
+  animation: hud-panel-in 200ms ease-out backwards;
+  animation-delay: var(--panel-delay, 0ms);
+}
+
+/* Ring zeichnet sich beim ersten Erscheinen auf seinen Wert. Der Zielwert
+   steht als stroke-dashoffset am Element; das Keyframe braucht deshalb nur
+   den Startwert (voller Umfang = leerer Ring). */
+@keyframes hud-ring-draw {
+  from {
+    stroke-dashoffset: var(--ring-circumference);
+  }
+}
+
+.hud-ring-draw {
+  animation: hud-ring-draw 600ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -15,15 +15,18 @@ interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'>
   fieldWidth?: FieldWidth;
 }
 
+// Eingabefelder bleiben in Inter — Monospace traegt hier nichts bei und
+// erschwert das Lesen laengerer Freitexte (Notiz, Empfaenger).
 const baseClasses =
-  'rounded-md border border-border bg-surface text-text ' +
-  'placeholder:text-text-dim transition-colors duration-150 enabled:hover:border-text-dim ' +
+  'rounded-control border border-border bg-surface text-text ' +
+  'placeholder:text-text-dim transition-colors duration-150 enabled:hover:border-border-lit ' +
   'focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50';
 
-// "lg" ist der grosse Mono-Betrag (Ausgabenerfassung, Dashboard-Kontostand).
+// "lg" ist der grosse Mono-Betrag (Ausgabenerfassung, Dashboard-Kontostand) —
+// eine Zahl, also Monospace mit tabular-nums, 44px laut Design-Abschnitt.
 const sizeClasses: Record<FieldSize, string> = {
   md: 'min-h-11 px-3 text-base',
-  lg: 'min-h-16 px-4 py-4 text-center text-5xl font-semibold tabular-amount',
+  lg: 'min-h-16 px-4 py-4 text-center text-[44px] tabular-amount',
 };
 
 const widthClasses: Record<FieldWidth, string> = {
@@ -50,8 +53,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   if (!label) return field;
 
   return (
-    <label htmlFor={inputId} className="flex flex-col gap-1.5 text-sm text-text-dim">
-      {label}
+    <label htmlFor={inputId} className="flex flex-col gap-1.5">
+      <span className="hud-label">{label}</span>
       {field}
     </label>
   );
