@@ -96,6 +96,35 @@ nominal_return_pct, inflation_pct,
 statutory_pension_cents (nullable), pension_start_age
 ```
 
+### Fremdschlüssel
+
+**Fremdschlüssel werden durchgesetzt.** SQLite hat sie per Default aus; ohne
+Einschalten sind die `REFERENCES` im Schema reine Dokumentation. `PRAGMA
+foreign_keys = ON` steht deshalb in `enableForeignKeys()` (`data/integrity.ts`)
+und wird an jeder Stelle aufgerufen, an der eine Verbindung entsteht.
+
+Beim App-Start läuft einmal `PRAGMA foreign_key_check` (in `getReadyDb`, nach
+den Migrationen). Fremdschlüssel greifen nur bei Schreibzugriffen — was vor
+dem Einschalten kaputtging, fällt sonst nie auf. Ein Fund hält die App nicht
+an, erscheint aber als Banner über jedem Screen: eine Buchung mit einer
+Kategorie-ID, die es nicht gibt, taucht in keiner Auswertung auf und zählt
+trotzdem im Kontostand mit.
+
+Drei Randbedingungen, die beim Ändern zu beachten sind:
+
+- **Das Pragma hängt an der Verbindung, nicht an der Datei.** Jede frisch
+  geöffnete Datenbank steht wieder auf 0 — auch eine importierte Sicherung in
+  `openDatabaseFromBytes`. Wer eine neue Verbindung aufmacht, muss es setzen.
+- **In einer offenen Transaktion ist es wirkungslos.** SQLite ignoriert es
+  dort stillschweigend. Es gehört direkt hinter das Öffnen, nicht in
+  `runMigrations` — das arbeitet je Migration in `BEGIN`/`COMMIT`.
+- **`DELETE FROM categories` in Migration 004 funktioniert nur ohne
+  `WHERE`-Klausel.** `categories.parent_id` verweist auf dieselbe Tabelle. Ein
+  vollständiges DELETE lässt SQLite durch, ein eingeschränktes würde einen
+  Elternsatz löschen, auf den ein Kind noch zeigt, und mit „FOREIGN KEY
+  constraint failed" scheitern. Wer die Zeile einschränkt, bricht die
+  Migration.
+
 ## Rentenrechner — inhaltliche Vorgaben
 
 - **In heutiger Kaufkraft rechnen.** Realrendite = (1+nominal)/(1+inflation)-1.
