@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import initSqlJs, { type Database } from 'sql.js';
+import { enableForeignKeys } from './integrity.ts';
 import { runMigrations } from './migrate.ts';
 import type { MigrationFile } from './migrationTypes.ts';
 
@@ -22,6 +23,9 @@ export function loadMigrationFilesFromDisk(): MigrationFile[] {
 export async function createTestDb(): Promise<Database> {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
+  // Wie in sqlite.ts: direkt nach dem Oeffnen. Ohne das wuerden Tests gegen
+  // eine Datenbank laufen, die weniger streng ist als die echte.
+  enableForeignKeys(db);
   runMigrations(db, loadMigrationFilesFromDisk());
   return db;
 }

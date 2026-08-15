@@ -5,6 +5,7 @@ import { Auswertung } from './Auswertung.tsx'
 import { Dashboard } from './Dashboard.tsx'
 import { Einstellungen } from './Einstellungen.tsx'
 import { ExpenseEntry } from './ExpenseEntry.tsx'
+import { IntegrityBanner } from './IntegrityBanner.tsx'
 import { Nachkategorisieren } from './Nachkategorisieren.tsx'
 import { currentRoute } from './routing.ts'
 import { Stammdaten } from './Stammdaten.tsx'
@@ -33,6 +34,7 @@ function page() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <UpdateBanner />
+    <IntegrityBanner />
     {page()}
   </StrictMode>,
 )

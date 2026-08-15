@@ -70,6 +70,23 @@ CREATE TABLE savings_goal (
 -- ---------------------------------------------------------------------------
 -- Kategorienbaum ersetzt den Seed aus 001 vollstaendig.
 -- ---------------------------------------------------------------------------
+
+-- Vorher alles loesen, was auf die gleich geloeschten Kategorien zeigt.
+-- Ohne das blieben Buchungen mit einer category_id zurueck, die es nicht mehr
+-- gibt: sie tauchen in keiner Auswertung auf, zaehlen aber im Kontostand mit.
+-- Auf NULL gesetzt landen sie stattdessen im Nachkategorisieren-Screen.
+-- Betrifft in der Praxis nur den Import einer Sicherung auf Schema <= 003,
+-- bei dem die fehlenden Migrationen nachgezogen werden.
+UPDATE transactions SET category_id = NULL WHERE category_id IS NOT NULL;
+UPDATE recurring    SET category_id = NULL WHERE category_id IS NOT NULL;
+
+-- ACHTUNG: Dieses DELETE funktioniert nur ohne WHERE-Klausel.
+-- categories.parent_id verweist auf dieselbe Tabelle. Bei aktivierten
+-- Fremdschluesseln laesst SQLite ein vollstaendiges DELETE durch (alle Zeilen
+-- verschwinden gemeinsam), waehrend ein eingeschraenktes DELETE einen
+-- Elternsatz loeschen wuerde, auf den ein Kind noch zeigt — das schlaegt mit
+-- "FOREIGN KEY constraint failed" fehl. Wer hier spaeter eine Bedingung
+-- ergaenzt, bricht die Migration.
 DELETE FROM categories;
 
 INSERT INTO categories (name, parent_id, sort_order) VALUES

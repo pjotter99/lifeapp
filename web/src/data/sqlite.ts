@@ -2,6 +2,7 @@ import initSqlJs, { type Database } from 'sql.js';
 // Selbst gehostet statt CDN-Fetch (CLAUDE.md: keine externen Requests) —
 // Vite bundelt die .wasm-Datei und liefert sie unter einer eigenen URL aus.
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
+import { checkIntegrity, enableForeignKeys, type IntegrityViolation } from './integrity.ts';
 import { loadPersistedDb, persistDb } from './indexeddb.ts';
 import { maybeRunGithubBackup } from './githubBackupScheduler.ts';
 import { runMigrations } from './migrate.ts';
@@ -24,7 +25,12 @@ let readyPromise: Promise<Database> | null = null;
 async function initDb(): Promise<Database> {
   const SQL = await getSqlJs();
   const existing = await loadPersistedDb();
-  return existing ? new SQL.Database(existing) : new SQL.Database();
+  const db = existing ? new SQL.Database(existing) : new SQL.Database();
+  // Direkt nach dem Oeffnen und vor der ersten Transaktion — in einer
+  // offenen Transaktion waere das Pragma wirkungslos. Nicht in
+  // runMigrations, das arbeitet je Migration in BEGIN/COMMIT.
+  enableForeignKeys(db);
+  return db;
 }
 
 // Einmal initialisiert, danach immer dieselbe Instanz — Promise gecacht,
@@ -42,7 +48,12 @@ function getDb(): Promise<Database> {
 // anzufassen. Wirft, wenn die Bytes keine gueltige SQLite-Datei sind.
 export async function openDatabaseFromBytes(bytes: Uint8Array): Promise<Database> {
   const SQL = await getSqlJs();
-  return new SQL.Database(bytes);
+  const db = new SQL.Database(bytes);
+  // Auch hier: das Pragma haengt an der Verbindung, nicht an der Datei. Eine
+  // hochgeladene Sicherung kaeme sonst ohne Fremdschluessel herein, und die
+  // nachgezogenen Migrationen liefen ungeprueft.
+  enableForeignKeys(db);
+  return db;
 }
 
 // Nach jeder schreibenden Operation aufrufen, nicht nach jeder Query.
@@ -80,6 +91,16 @@ function registerGithubBackupOnlineRetry(): void {
   });
 }
 
+// Ergebnis des einmaligen Selbsttests beim Start. Kein Grund, die App
+// anzuhalten — Lesen und unbeteiligte Schreibvorgaenge funktionieren weiter —,
+// aber der Nutzer muss es erfahren, statt sich ueber falsche Summen zu
+// wundern. Wird von IntegrityBanner ausgelesen.
+let integrityViolations: IntegrityViolation[] = [];
+
+export function getIntegrityViolations(): IntegrityViolation[] {
+  return integrityViolations;
+}
+
 export function getReadyDb(): Promise<Database> {
   if (!readyPromise) {
     registerGithubBackupOnlineRetry();
@@ -87,6 +108,10 @@ export function getReadyDb(): Promise<Database> {
       const applied = runMigrations(db, migrationFiles);
       const { created } = runRecurringJob(db);
       if (applied > 0 || created > 0) await persist();
+      // Nach den Migrationen: eine davon koennte selbst etwas hinterlassen
+      // haben. Fremdschluessel greifen nur bei Schreibzugriffen, Altlasten aus
+      // der Zeit ohne Durchsetzung faellt sonst nie jemand auf.
+      integrityViolations = checkIntegrity(db);
       return db;
     });
   }

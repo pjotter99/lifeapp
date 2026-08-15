@@ -12,6 +12,7 @@ import {
   prepareImportPreview,
   type DatabaseOpener,
 } from './backup.ts';
+import { enableForeignKeys } from './integrity.ts';
 import { runMigrations } from './migrate.ts';
 import { getCategories, type Category } from './categories.ts';
 import { createTransaction } from './transactions.ts';
@@ -38,7 +39,11 @@ function findCategory(categories: Category[], name: string, parentName?: string)
 // Browser testbar.
 const testOpenDb: DatabaseOpener = async (bytes) => {
   const SQL = await initSqlJs();
-  return new SQL.Database(bytes);
+  const db = new SQL.Database(bytes);
+  // Wie openDatabaseFromBytes: das Pragma haengt an der Verbindung, eine
+  // hochgeladene Sicherung kaeme sonst ohne Durchsetzung herein.
+  enableForeignKeys(db);
+  return db;
 };
 
 // --- getContentOverview -----------------------------------------------
