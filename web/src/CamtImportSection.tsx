@@ -1,7 +1,7 @@
 import type { Database } from 'sql.js';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Amount, Button, Chip, Panel } from './components';
-import { getAccountByIban, getAccounts, updateAccount, type Account } from './data/accounts.ts';
+import { getAccountByIban, getAccounts, ibanLast4, updateAccount, type Account } from './data/accounts.ts';
 import { parseCamt052, type CamtParseResult, type XmlDocument } from './data/camt.ts';
 import { buildCamtPreview, commitCamtImport, type CamtPreview } from './data/camtImport.ts';
 import { persist } from './data/sqlite.ts';
@@ -14,7 +14,9 @@ interface Pending {
   parsed: CamtParseResult;
   preview: CamtPreview;
   accountId: number;
-  /** IBAN aus der Datei, zu der noch kein Konto hinterlegt ist. */
+  /** Volle IBAN aus der Datei, zu der noch kein Konto hinterlegt ist.
+   *  Nur waehrend der Vorschau im Speicher — gespeichert werden spaeter
+   *  ausschliesslich die letzten vier Stellen. */
   unknownIban: string | null;
 }
 
@@ -218,11 +220,12 @@ export function CamtImportSection({ db, onImported }: { db: Database | null; onI
           {pending.unknownIban && (
             <div className="flex flex-col gap-2 border-t border-border pt-3">
               <p className="text-sm text-text-dim">
-                Zu <span className="tabular-amount">{pending.unknownIban}</span> ist kein Konto hinterlegt. Merken, damit
-                künftige Auszüge automatisch zugeordnet werden?
+                Zum Konto mit den Endziffern{' '}
+                <span className="tabular-amount">{ibanLast4(pending.unknownIban)}</span> ist nichts hinterlegt. Merken,
+                damit künftige Auszüge automatisch zugeordnet werden? Gespeichert werden nur diese vier Stellen.
               </p>
               <Button variant="secondary" className="self-start" onClick={rememberIban}>
-                IBAN diesem Konto zuordnen
+                Endziffern diesem Konto zuordnen
               </Button>
             </div>
           )}

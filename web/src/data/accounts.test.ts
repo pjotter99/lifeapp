@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getAccounts, updateAccount } from './accounts.ts';
+import { getAccountByIban, getAccounts, ibanLast4, updateAccount } from './accounts.ts';
+import { execRun, queryOne } from './sqlHelpers.ts';
 import { createTestDb } from './testDb.ts';
 
 // Das aus Migration 003 geseedete Girokonto,
@@ -72,4 +73,56 @@ test('updateAccount kann opening_date wieder auf null setzen', async () => {
   const updated = updateAccount(db, account!.id, { opening_date: null });
 
   assert.equal(updated.opening_date, null);
+});
+
+// --- IBAN: nur die letzten vier Stellen -----------------------------------
+
+test('ibanLast4 ignoriert Gruppierung und Schreibweise', () => {
+  assert.equal(ibanLast4('DE02120300000000202051'), '2051');
+  assert.equal(ibanLast4('DE02 1203 0000 0000 2020 51'), '2051');
+  assert.equal(ibanLast4('de02-1203-0000-0000-2020-51'), '2051');
+});
+
+test('updateAccount speichert nur die letzten vier Stellen', async () => {
+  const db = await createTestDb();
+
+  const updated = updateAccount(db, 1, { iban: 'DE02 1203 0000 0000 2020 51' });
+
+  assert.equal(updated.iban_last4, '2051');
+  // Gegenprobe direkt in der Tabelle: nirgends steht mehr als die vier Stellen.
+  const row = queryOne<{ iban_last4: string | null }>(db, 'SELECT iban_last4 FROM accounts WHERE id = 1')!;
+  assert.equal(row.iban_last4, '2051');
+});
+
+test('getAccountByIban findet ueber die letzten vier Stellen', async () => {
+  const db = await createTestDb();
+  updateAccount(db, 1, { iban: 'DE02120300000000202051' });
+
+  assert.equal(getAccountByIban(db, 'DE02120300000000202051')?.id, 1);
+  // Andere Bank, andere Pruefziffern, gleiche Endziffern -> selbes Konto.
+  assert.equal(getAccountByIban(db, 'DE99500105170000202051')?.id, 1);
+  assert.equal(getAccountByIban(db, 'DE02120300000000209999'), null);
+});
+
+test('updateAccount kann die Zuordnung wieder loeschen', async () => {
+  const db = await createTestDb();
+  updateAccount(db, 1, { iban: 'DE02120300000000202051' });
+
+  assert.equal(updateAccount(db, 1, { iban: null }).iban_last4, null);
+});
+
+test('updateAccount wirft bei zu kurzer IBAN', async () => {
+  const db = await createTestDb();
+  assert.throws(() => updateAccount(db, 1, { iban: 'DE1' }), /zu kurz/);
+});
+
+// Bei vier Stellen sind Kollisionen deutlich wahrscheinlicher als bei einer
+// vollen IBAN — die Meldung muss sagen, welches Konto im Weg steht.
+test('updateAccount wirft mit Kontonamen, wenn die Endziffern belegt sind', async () => {
+  const db = await createTestDb();
+  execRun(db, "INSERT INTO accounts (name, type, active) VALUES ('Zweitkonto', 'giro', 1)");
+  updateAccount(db, 1, { iban: 'DE02120300000000202051' });
+
+  const second = queryOne<{ id: number }>(db, "SELECT id FROM accounts WHERE name = 'Zweitkonto'")!;
+  assert.throws(() => updateAccount(db, second.id, { iban: 'DE99500105170000202051' }), /bereits "Girokonto"/);
 });

@@ -8,12 +8,17 @@ export interface Account {
   active: number;
   opening_balance_cents: number;
   opening_date: string | null;
-  iban: string | null;
+  /** Nur die letzten vier Stellen der IBAN — mehr wird nicht gespeichert. */
+  iban_last4: string | null;
 }
 
 export interface UpdateAccountInput {
   opening_balance_cents?: number;
   opening_date?: string | null;
+  /**
+   * Vollstaendige IBAN, wie sie im Kontoauszug steht. Gespeichert werden
+   * daraus nur die letzten vier Stellen; null loescht die Zuordnung.
+   */
   iban?: string | null;
 }
 
@@ -23,23 +28,28 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export function getAccounts(db: Database): Account[] {
   return queryAll<Account>(
     db,
-    'SELECT id, name, type, active, opening_balance_cents, opening_date, iban FROM accounts WHERE active = 1 ORDER BY id',
+    'SELECT id, name, type, active, opening_balance_cents, opening_date, iban_last4 FROM accounts WHERE active = 1 ORDER BY id',
   );
 }
 
-/** Normalisiert wie updateAccount speichert — ohne Leerzeichen, Grossbuchstaben. */
-export function normalizeIban(iban: string): string {
-  return iban.replace(/\s+/g, '').toUpperCase();
+/**
+ * Die letzten vier Stellen einer IBAN. Leerzeichen und Bindestriche fliegen
+ * vorher raus — sonst haengt das Ergebnis davon ab, wie die Bank die IBAN
+ * gruppiert hat.
+ */
+export function ibanLast4(iban: string): string {
+  return iban.replace(/[\s-]/g, '').toUpperCase().slice(-4);
 }
 
-// Konto zu einer IBAN aus einer CAMT-Datei. null, wenn keine hinterlegt ist —
-// dann waehlt der Nutzer das Konto in der Import-Vorschau.
+// Konto zur IBAN aus einer CAMT-Datei, verglichen ueber die letzten vier
+// Stellen. null, wenn keine hinterlegt ist — dann waehlt der Nutzer das Konto
+// in der Import-Vorschau.
 export function getAccountByIban(db: Database, iban: string): Account | null {
   return (
     queryOne<Account>(
       db,
-      'SELECT id, name, type, active, opening_balance_cents, opening_date, iban FROM accounts WHERE iban = ?',
-      [normalizeIban(iban)],
+      'SELECT id, name, type, active, opening_balance_cents, opening_date, iban_last4 FROM accounts WHERE iban_last4 = ?',
+      [ibanLast4(iban)],
     ) ?? null
   );
 }
@@ -74,11 +84,26 @@ export function updateAccount(db: Database, id: number, input: UpdateAccountInpu
 
   if (input.iban !== undefined) {
     // Leerstring wie "nicht gesetzt" behandeln, sonst kollidiert ein zweites
-    // Konto ohne IBAN mit dem UNIQUE-Index. Normalisiert ohne Leerzeichen und
-    // in Grossbuchstaben, damit "de02 1203 ..." und "DE0212030..." nicht als
-    // zwei verschiedene Konten gelten.
-    const normalized = input.iban === null ? null : input.iban.replace(/\s+/g, '').toUpperCase();
-    updates.iban = normalized === '' ? null : normalized;
+    // Konto ohne IBAN mit dem UNIQUE-Index.
+    const trimmed = input.iban === null ? '' : input.iban.trim();
+    const last4 = trimmed === '' ? null : ibanLast4(trimmed);
+
+    if (last4 !== null && last4.length < 4) {
+      throw new Error('IBAN zu kurz — die letzten vier Stellen fehlen.');
+    }
+    // Vor dem UNIQUE-Index abfangen, damit statt "constraint failed" eine
+    // Meldung kommt, die sagt, was zu tun ist.
+    if (last4 !== null) {
+      const other = queryOne<{ name: string }>(
+        db,
+        'SELECT name FROM accounts WHERE iban_last4 = ? AND id <> ?',
+        [last4, id],
+      );
+      if (other) {
+        throw new Error(`Endziffern ${last4} sind bereits "${other.name}" zugeordnet.`);
+      }
+    }
+    updates.iban_last4 = last4;
   }
 
   const keys = Object.keys(updates);
