@@ -1,5 +1,7 @@
 import type { Database } from 'sql.js';
 import type { CamtEntry } from './camt.ts';
+import { getCategoryRules, matchRule } from './categoryRules.ts';
+import { isTransferCategory } from './uncategorized.ts';
 import { execRun, queryAll, queryOne } from './sqlHelpers.ts';
 
 /**
@@ -30,6 +32,14 @@ export interface RecurringMatch {
 export interface CamtPreview {
   /** Buchungen, die tatsaechlich angelegt oder zusammengefuehrt wuerden. */
   entries: CamtEntry[];
+  /**
+   * Kategorie je Eintrag aus einer Regel, null wenn keine greift.
+   * Index-gleich zu entries, damit Vorschau und Uebernahme garantiert
+   * dieselbe Zuordnung verwenden statt zweimal zu rechnen.
+   */
+  ruleCategoryIds: (number | null)[];
+  /** Wie viele Eintraege eine Regel automatisch zugeordnet hat. */
+  autoCategorized: number;
   /** Zeilen aus der Datei, die schon in der Datenbank stehen. */
   alreadyPresent: number;
   skippedPending: number;
@@ -108,19 +118,30 @@ export function buildCamtPreview(
     entries.push(entry);
   }
 
+  // Regeln einmal laden und auf alle Eintraege anwenden. Zusammengefuehrte
+  // Fixkostenzeilen bleiben aussen vor — die bringen ihre Kategorie mit.
+  const rules = getCategoryRules(db);
+  const recurringMatches = findRecurringMatches(db, entries, accountId);
+  const mergeTargets = new Set(recurringMatches.map((m) => m.entryIndex));
+  const ruleCategoryIds = entries.map((entry, index) =>
+    mergeTargets.has(index) ? null : (matchRule(rules, entry.payee)?.category_id ?? null),
+  );
+
   const dates = entries.map((e) => e.date).sort();
   const incomeCents = entries.filter((e) => e.amount_cents > 0).reduce((s, e) => s + e.amount_cents, 0);
   const expenseCents = entries.filter((e) => e.amount_cents < 0).reduce((s, e) => s + e.amount_cents, 0);
 
   return {
     entries,
+    ruleCategoryIds,
+    autoCategorized: ruleCategoryIds.filter((id) => id !== null).length,
     alreadyPresent,
     skippedPending: parsed.skippedPending,
     dateFrom: dates[0] ?? null,
     dateTo: dates[dates.length - 1] ?? null,
     incomeCents,
     expenseCents,
-    recurringMatches: findRecurringMatches(db, entries, accountId),
+    recurringMatches,
   };
 }
 
@@ -243,13 +264,30 @@ export function commitCamtImport(
         return;
       }
 
+      // Kategorie aus einer Regel, falls eine greift. category_locked bleibt
+      // 0: die Regel schlaegt vor, sie entscheidet nicht — sonst waere ein
+      // Fehlgriff spaeter nicht mehr von einer bewussten Wahl zu
+      // unterscheiden (CLAUDE.md, harte Regel 5).
+      const ruleCategoryId = preview.ruleCategoryIds[index] ?? null;
+      const isTransfer = ruleCategoryId !== null && isTransferCategory(db, ruleCategoryId) ? 1 : 0;
+
       execRun(
         db,
         `INSERT INTO transactions
            (date, amount_cents, category_id, account_id, payee, note,
             source, source_hash, hash_seq, category_locked, is_transfer)
-         VALUES (?, ?, NULL, ?, ?, ?, 'camt', ?, ?, 0, 0)`,
-        [entry.date, entry.amount_cents, accountId, entry.payee, entry.note, entry.source_hash, seq],
+         VALUES (?, ?, ?, ?, ?, ?, 'camt', ?, ?, 0, ?)`,
+        [
+          entry.date,
+          entry.amount_cents,
+          ruleCategoryId,
+          accountId,
+          entry.payee,
+          entry.note,
+          entry.source_hash,
+          seq,
+          isTransfer,
+        ],
       );
       inserted += 1;
     });

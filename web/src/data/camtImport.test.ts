@@ -4,6 +4,7 @@ import type { Database } from 'sql.js';
 import type { CamtEntry } from './camt.ts';
 import { buildCamtPreview, commitCamtImport, countUncategorized, findRecurringMatches } from './camtImport.ts';
 import { getCategories, type Category } from './categories.ts';
+import { createCategoryRule } from './categoryRules.ts';
 import { createRecurring } from './recurring.ts';
 import { runRecurringJob } from './recurringJob.ts';
 import { queryAll, queryOne } from './sqlHelpers.ts';
@@ -52,6 +53,7 @@ function allTransactions(db: Database) {
     recurring_id: number | null;
     period: string | null;
     category_locked: number;
+    is_transfer: number;
   }>(db, 'SELECT * FROM transactions ORDER BY id');
 }
 
@@ -343,4 +345,106 @@ test('countUncategorized zaehlt nur Buchungen ohne Kategorie', async () => {
 
   assert.equal(countUncategorized(db), 1);
   assert.equal(queryOne<{ c: number }>(db, 'SELECT COUNT(*) AS c FROM transactions')!.c, 2);
+});
+
+// --- Regeln beim Import ----------------------------------------------------
+
+test('Eine passende Regel setzt die Kategorie, laesst sie aber offen', async () => {
+  const db = await createTestDb();
+  const einkauf = findCategory(getCategories(db), 'Einkauf', 'Lebensmittel');
+  createCategoryRule(db, { pattern: 'REWE', match_type: 'contains', category_id: einkauf.id });
+
+  const preview = buildCamtPreview(db, parsed([entry({ payee: 'REWE Markt GmbH' })]), ACCOUNT_ID);
+  assert.equal(preview.autoCategorized, 1);
+
+  commitCamtImport(db, preview, ACCOUNT_ID, new Set());
+
+  const row = allTransactions(db)[0]!;
+  assert.equal(row.category_id, einkauf.id);
+  assert.equal(row.category_locked, 0, 'die Regel schlaegt vor, sie entscheidet nicht');
+});
+
+test('Ohne passende Regel bleibt die Buchung unkategorisiert', async () => {
+  const db = await createTestDb();
+  const einkauf = findCategory(getCategories(db), 'Einkauf', 'Lebensmittel');
+  createCategoryRule(db, { pattern: 'ALDI', match_type: 'contains', category_id: einkauf.id });
+
+  const preview = buildCamtPreview(db, parsed([entry({ payee: 'REWE Markt' })]), ACCOUNT_ID);
+
+  assert.equal(preview.autoCategorized, 0);
+  commitCamtImport(db, preview, ACCOUNT_ID, new Set());
+  assert.equal(allTransactions(db)[0]!.category_id, null);
+});
+
+test('autoCategorized zaehlt nur die tatsaechlich zugeordneten Eintraege', async () => {
+  const db = await createTestDb();
+  const einkauf = findCategory(getCategories(db), 'Einkauf', 'Lebensmittel');
+  createCategoryRule(db, { pattern: 'REWE', match_type: 'contains', category_id: einkauf.id });
+
+  const preview = buildCamtPreview(
+    db,
+    parsed([
+      entry({ payee: 'REWE Markt', source_hash: 'H1' }),
+      entry({ payee: 'ALDI', source_hash: 'H2' }),
+      entry({ payee: 'REWE City', source_hash: 'H3' }),
+    ]),
+    ACCOUNT_ID,
+  );
+
+  assert.equal(preview.entries.length, 3);
+  assert.equal(preview.autoCategorized, 2);
+});
+
+// Eine Regel auf eine Transfer-Kategorie muss is_transfer mitsetzen, sonst
+// zaehlt die Sparrate als Ausgabe (CLAUDE.md).
+test('Regel auf eine Transfer-Kategorie setzt is_transfer', async () => {
+  const db = await createTestDb();
+  const sparen = findCategory(getCategories(db), 'Sparen', 'Transfer');
+  createCategoryRule(db, { pattern: 'Dauerauftrag Sparen', match_type: 'contains', category_id: sparen.id });
+
+  const preview = buildCamtPreview(
+    db,
+    parsed([entry({ payee: 'Dauerauftrag Sparen', amount_cents: -50000 })]),
+    ACCOUNT_ID,
+  );
+  commitCamtImport(db, preview, ACCOUNT_ID, new Set());
+
+  assert.equal(allTransactions(db)[0]!.is_transfer, 1);
+});
+
+// Die zusammengefuehrte Zeile bringt ihre Kategorie aus dem Fixkostenposten
+// mit — eine Regel darf sie nicht ueberschreiben.
+test('Zusammengefuehrte Fixkostenzeilen bleiben von Regeln unberuehrt', async () => {
+  const db = await createTestDb();
+  const rec = await withRecurringRent(db);
+  const einkauf = findCategory(getCategories(db), 'Einkauf', 'Lebensmittel');
+  createCategoryRule(db, { pattern: 'Vermieter', match_type: 'contains', category_id: einkauf.id });
+
+  const preview = buildCamtPreview(
+    db,
+    parsed([entry({ date: '2026-08-26', amount_cents: -120000, payee: 'Vermieter GmbH', source_hash: 'BANK-1' })]),
+    ACCOUNT_ID,
+  );
+  assert.equal(preview.autoCategorized, 0, 'Kandidat wird nicht von einer Regel angefasst');
+
+  commitCamtImport(db, preview, ACCOUNT_ID, new Set([0]));
+
+  const row = allTransactions(db)[0]!;
+  assert.equal(row.recurring_id, rec.id);
+  assert.notEqual(row.category_id, einkauf.id, 'Kategorie des Fixkostenpostens bleibt');
+  assert.equal(row.category_locked, 1);
+});
+
+test('Bei mehreren Regeln gewinnt beim Import dieselbe wie in matchRule', async () => {
+  const db = await createTestDb();
+  const categories = getCategories(db);
+  const einkauf = findCategory(categories, 'Einkauf', 'Lebensmittel');
+  const geschenke = findCategory(categories, 'Geschenke', 'Persönlich');
+  createCategoryRule(db, { pattern: 'REWE', match_type: 'contains', category_id: einkauf.id, priority: 0 });
+  createCategoryRule(db, { pattern: 'REWE', match_type: 'contains', category_id: geschenke.id, priority: 5 });
+
+  const preview = buildCamtPreview(db, parsed([entry({ payee: 'REWE Markt' })]), ACCOUNT_ID);
+  commitCamtImport(db, preview, ACCOUNT_ID, new Set());
+
+  assert.equal(allTransactions(db)[0]!.category_id, geschenke.id, 'hoehere priority');
 });

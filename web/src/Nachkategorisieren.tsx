@@ -1,9 +1,10 @@
 import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
-import { Amount, Button, Input, Panel } from './components';
+import { Amount, Button, Chip, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
 import { getCategories } from './data/categories.ts';
+import { createCategoryRule, suggestPattern, type MatchType } from './data/categoryRules.ts';
 import { getReadyDb, persist } from './data/sqlite.ts';
 import {
   categorizeTransaction,
@@ -100,6 +101,13 @@ function UncategorizedItem({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Regel-Angebot: nur sinnvoll, wenn es einen Empfaenger gibt, an dem sie
+  // haengen kann. Muster vorausgefuellt, aber editierbar — der Vorschlag
+  // spart Tippen und trifft nicht immer.
+  const [ruleWanted, setRuleWanted] = useState(false);
+  const [rulePattern, setRulePattern] = useState(() => (item.payee ? suggestPattern(item.payee) : ''));
+  const [ruleMatchType, setRuleMatchType] = useState<MatchType>('contains');
+
   async function save() {
     if (!db) return;
     if (categoryId === null) {
@@ -110,6 +118,11 @@ function UncategorizedItem({
     setError(null);
     try {
       categorizeTransaction(db, item.id, { category_id: categoryId, payee, note });
+      // Regel nach der Buchung anlegen: schlaegt sie fehl (leeres Muster,
+      // archivierte Kategorie), ist die Kategorisierung trotzdem gespeichert.
+      if (ruleWanted && rulePattern.trim() !== '') {
+        createCategoryRule(db, { pattern: rulePattern, match_type: ruleMatchType, category_id: categoryId });
+      }
       await persist();
       onDone();
     } catch (err) {
@@ -155,6 +168,34 @@ function UncategorizedItem({
               disabled={saving}
             />
           </div>
+
+          {item.payee && (
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <Chip selected={ruleWanted} className="self-start" onClick={() => setRuleWanted((v) => !v)}>
+                Regel daraus machen
+              </Chip>
+              {ruleWanted && (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-text-dim">
+                    Künftige Buchungen mit diesem Empfänger bekommen die Kategorie automatisch vorgeschlagen — änderbar
+                    bleibt sie.
+                  </p>
+                  <Input label="Muster" value={rulePattern} onChange={(e) => setRulePattern(e.target.value)} />
+                  <div className="flex flex-col gap-1.5">
+                    <span className="hud-label">Vergleich</span>
+                    <div className="flex flex-wrap gap-2">
+                      <Chip selected={ruleMatchType === 'contains'} onClick={() => setRuleMatchType('contains')}>
+                        Enthält
+                      </Chip>
+                      <Chip selected={ruleMatchType === 'exact'} onClick={() => setRuleMatchType('exact')}>
+                        Genau
+                      </Chip>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-sm text-negative">{error}</p>}
 

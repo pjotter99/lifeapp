@@ -96,6 +96,23 @@ nominal_return_pct, inflation_pct,
 statutory_pension_cents (nullable), pension_start_age
 ```
 
+### category_rules
+Leiten beim Bank-Import aus dem Empfänger (`payee`) eine Kategorie ab.
+```
+id, pattern, match_type ('contains'|'exact'), category_id, priority, created_at
+```
+**Die Regel schlägt vor, sie entscheidet nicht:** der Import setzt
+`category_id`, lässt `category_locked` aber auf 0. Ein Fehlgriff ist damit im
+Nachkategorisieren-Screen korrigierbar, und die Korrektur sperrt die Buchung
+anschließend gegen weitere Automatik (harte Regel 5).
+
+Bei mehreren Treffern gewinnt die höchste `priority`, bei Gleichstand das
+längere (spezifischere) `pattern`, zuletzt die kleinere `id` — sonst hinge das
+Ergebnis von der Zeilenreihenfolge ab. Groß-/Kleinschreibung ist egal.
+
+Zusammengeführte Fixkostenbuchungen bleiben ausgenommen; sie bringen ihre
+Kategorie aus dem `recurring`-Eintrag mit.
+
 ### Fremdschlüssel
 
 **Fremdschlüssel werden durchgesetzt.** SQLite hat sie per Default aus; ohne

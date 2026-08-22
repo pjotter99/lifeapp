@@ -2,9 +2,10 @@ import type { Database } from 'sql.js';
 import { execRun, queryAll, queryOne } from './sqlHelpers.ts';
 
 /**
- * Nachkategorisieren importierter Buchungen. Der Import setzt bewusst keine
- * Kategorie (CLAUDE.md: keine automatische Regelerkennung), diese Funktionen
- * holen sie nach.
+ * Nachkategorisieren importierter Buchungen. Seit den Regeln
+ * (categoryRules.ts) schlaegt der Import eine Kategorie vor, laesst sie aber
+ * mit category_locked = 0 offen; alles ohne Treffer kommt hier unkategorisiert
+ * an. Beides landet zur Bestaetigung bzw. Zuordnung in diesen Funktionen.
  */
 
 export interface UncategorizedTransaction {
@@ -41,7 +42,7 @@ interface CategoryRow {
  * ist ein Transfer und keine Ausgabe (CLAUDE.md). Zweistufig geprueft, weil
  * "Transfer" die Oberkategorie ist und die Buchung an der Unterkategorie haengt.
  */
-function isTransferCategory(db: Database, categoryId: number): boolean {
+export function isTransferCategory(db: Database, categoryId: number): boolean {
   const category = queryOne<CategoryRow>(db, 'SELECT id, name, parent_id, archived FROM categories WHERE id = ?', [
     categoryId,
   ]);

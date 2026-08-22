@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { Amount, Button, Chip, Input, Panel } from './components';
 import { BottomTabBar } from './BottomTabBar';
 import { CategoryPicker, type Category } from './CategoryPicker';
+import { CategoryRulesSection } from './CategoryRulesSection';
 import { getCategories } from './data/categories.ts';
+import { getCategoryRules, type CategoryRuleListItem } from './data/categoryRules.ts';
 import { getAccounts, updateAccount, type Account } from './data/accounts.ts';
 import {
   createRecurring,
@@ -52,6 +54,7 @@ export function Stammdaten() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [recurring, setRecurring] = useState<Recurring[]>([]);
   const [savingsGoal, setSavingsGoal] = useState<SavingsGoal | null>(null);
+  const [rules, setRules] = useState<CategoryRuleListItem[]>([]);
   const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,6 +68,7 @@ export function Stammdaten() {
     setAccounts(getAccounts(database));
     setRecurring(getRecurring(database));
     setSavingsGoal(getCurrentSavingsGoal(database));
+    setRules(getCategoryRules(database));
   }
 
   useEffect(() => {
@@ -86,6 +90,7 @@ export function Stammdaten() {
       <AccountSection db={db} accounts={accounts} onSaved={reload} />
       <SavingsGoalSection db={db} goal={savingsGoal} onSaved={reload} />
       <RecurringSection db={db} categories={categories} recurring={recurring} onChanged={reload} />
+      <CategoryRulesSection db={db} rules={rules} categories={categories} onChanged={reload} />
       <BottomTabBar />
     </div>
   );

@@ -184,6 +184,12 @@ export function CamtImportSection({ db, onImported }: { db: Database | null; onI
               <dt className="hud-label">Ausgaben</dt>
               <Amount cents={preview.expenseCents} size="sm" />
             </div>
+            {preview.autoCategorized > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="hud-label">Per Regel zugeordnet</dt>
+                <dd>{preview.autoCategorized}</dd>
+              </div>
+            )}
             {preview.alreadyPresent > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="hud-label">Schon vorhanden</dt>
