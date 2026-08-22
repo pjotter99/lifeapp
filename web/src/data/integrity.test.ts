@@ -183,7 +183,7 @@ test('Leere Sicherung auf Schema 003 migriert unveraendert hoch', async () => {
   runMigrations(db, all);
 
   assert.deepEqual(checkIntegrity(db), []);
-  assert.equal(queryOne<{ c: number }>(db, 'SELECT COUNT(*) AS c FROM categories')!.c, 43);
+  assert.equal(queryOne<{ c: number }>(db, 'SELECT COUNT(*) AS c FROM categories')!.c, 44);
 });
 
 // Absicherung des Kommentars in 004: ohne WHERE geht es, mit WHERE nicht.

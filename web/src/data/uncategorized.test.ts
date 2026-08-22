@@ -321,7 +321,7 @@ test('Aufteilen in drei Teile geht auf', async () => {
   const categories = getCategories(db);
   const a = findCategory(categories, 'Einkauf', 'Lebensmittel');
   const b = findCategory(categories, 'Geschenke', 'Persönlich');
-  const c = findCategory(categories, 'Kleidung', 'Persönlich');
+  const c = findCategory(categories, 'Kleidung & Schuhe', 'Persönlich');
 
   splitTransaction(db, original.id, [
     { amount_cents: -3333, category_id: a.id },

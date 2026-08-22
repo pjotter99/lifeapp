@@ -57,7 +57,7 @@ test('getContentOverview ist leer ohne Daten', async () => {
   assert.equal(overview.incomeCents, 0);
   assert.equal(overview.expenseCents, 0);
   assert.equal(overview.tableCounts.accounts, 1, 'Migration 003 seedet ein Konto');
-  assert.equal(overview.tableCounts.categories, 43);
+  assert.equal(overview.tableCounts.categories, 44);
 });
 
 test('getContentOverview summiert Einnahmen/Ausgaben ueber alle Monate, ohne Transfers', async () => {

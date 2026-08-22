@@ -59,3 +59,66 @@ test('Ohne hinterlegte IBAN bleibt iban_last4 leer', async () => {
   const row = db.exec('SELECT iban_last4 FROM accounts WHERE id = 1')[0]!.values[0]!;
   assert.equal(row[0], null);
 });
+
+// --- Migration 010: Umbenennungen -----------------------------------------
+
+/**
+ * Der Kern der Vorgabe: eine Umbenennung darf bestehende Buchungen nicht von
+ * ihrer Kategorie loesen. Deshalb UPDATE statt DELETE + INSERT — die ID bleibt
+ * dieselbe. Geprueft wird gegen die echten Migrationsdateien.
+ */
+test('Migration 010 laesst bestehende Buchungen an ihrer Kategorie', async () => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  const all = loadMigrationFilesFromDisk();
+
+  // Bis einschliesslich 009 migrieren, dann Buchungen auf den alten Namen legen.
+  runMigrations(
+    db,
+    all.filter((f) => f.file < '010'),
+  );
+  const kleidung = db.exec(
+    "SELECT c.id FROM categories c JOIN categories p ON p.id = c.parent_id WHERE c.name = 'Kleidung' AND p.name = 'Persönlich'",
+  )[0]!.values[0]![0] as number;
+  const shopping = db.exec(
+    "SELECT c.id FROM categories c JOIN categories p ON p.id = c.parent_id WHERE c.name = 'Online Shopping' AND p.name = 'Persönlich'",
+  )[0]!.values[0]![0] as number;
+  db.exec(
+    `INSERT INTO transactions (date, amount_cents, category_id, account_id, source) VALUES ('2026-05-01', -4999, ${kleidung}, 1, 'manual')`,
+  );
+  db.exec(
+    `INSERT INTO transactions (date, amount_cents, category_id, account_id, source) VALUES ('2026-05-02', -1299, ${shopping}, 1, 'manual')`,
+  );
+
+  runMigrations(db, all);
+
+  // Dieselben IDs, nur mit neuem Namen.
+  const rows = db.exec(
+    'SELECT t.amount_cents, t.category_id, c.name FROM transactions t JOIN categories c ON c.id = t.category_id ORDER BY t.date',
+  )[0]!.values;
+  assert.deepEqual(rows, [
+    [-4999, kleidung, 'Kleidung & Schuhe'],
+    [-1299, shopping, 'Anschaffungen'],
+  ]);
+});
+
+test('Migration 010 benennt keine gleichnamige Kategorie unter anderem Elternteil um', async () => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  const all = loadMigrationFilesFromDisk();
+  runMigrations(
+    db,
+    all.filter((f) => f.file < '010'),
+  );
+  // "Kleidung" zusaetzlich unter Freizeit anlegen — darf unberuehrt bleiben.
+  db.exec(
+    "INSERT INTO categories (name, parent_id, sort_order) SELECT 'Kleidung', id, 99 FROM categories WHERE name = 'Freizeit' AND parent_id IS NULL",
+  );
+
+  runMigrations(db, all);
+
+  const unterFreizeit = db.exec(
+    "SELECT c.name FROM categories c JOIN categories p ON p.id = c.parent_id WHERE p.name = 'Freizeit' AND c.sort_order = 99",
+  )[0]!.values[0]![0];
+  assert.equal(unterFreizeit, 'Kleidung', 'nur die Kategorie unter Persönlich wurde umbenannt');
+});

@@ -244,17 +244,18 @@ stehen.
 Kontostand = opening_balance + Summe aller Buchungen ab opening_date.
 
 ### Kategorienbaum (Migration 004 ersetzt den Seed aus 001, Migration 005 ergänzt Bargeld,
-Migration 007 ergänzt Online Shopping)
+Migration 007 ergänzt Online Shopping, Migration 010 benennt um und ergänzt
+Kantine/Mittag)
 
 ```
 Einnahmen        Gehalt · Sonderzahlung · Steuererstattung · Sonstiges
 Wohnen           Darlehen · Strom · Nebenkosten · Wasser ·
                  Grundsteuer · GEZ
-Lebensmittel     Einkauf · Essen gehen
+Lebensmittel     Einkauf · Essen gehen · Kantine/Mittag
 Mobilität        Benzin · Kfz-Steuer · Kfz-Versicherung ·
                  Kfz-Instandhaltung · ÖPNV
-Persönlich       Beauty · Kleidung · Geschenke · Handy ·
-                 Mitgliedschaften · Online Shopping
+Persönlich       Beauty · Kleidung & Schuhe · Geschenke · Handy ·
+                 Mitgliedschaften · Anschaffungen
 Freizeit         Feiern · Sonstiges
 Versicherungen   Haftpflicht · Hausrat · BU
 Kredite          Sonstiges
@@ -266,6 +267,11 @@ Bargeld ist eine normale Ausgabe (Bargeldabhebung), kein Transfer —
 `is_transfer` bleibt 0, obwohl auch hier Geld zwischen "Konten" (Giro → Bar)
 wandert. Anders als bei Sparen wird die Bar-Seite hier nicht als eigenes Konto
 geführt, deshalb zählt die Abhebung als Ausgabe.
+
+**"Anschaffungen" statt "Online Shopping".** Der Kanal, über den gekauft
+wird, ist keine Ausgabenart — sonst steht in der Auswertung ein Sammelposten
+ohne Aussage. Gemeint sind Kabel, Kleinkram, Haushalt, Technik. Aus demselben
+Grund gilt:
 
 **"Abos" ist keine Kategorie.** Ein Abo ist ein `recurring`-Eintrag und trägt die
 Kategorie seines Inhalts (Netflix → Freizeit, Fitnessstudio → Mitgliedschaften).

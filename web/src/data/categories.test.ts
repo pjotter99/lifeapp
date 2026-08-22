@@ -18,11 +18,11 @@ function findCategory(categories: Category[], name: string, parentName?: string)
 }
 
 // Nur nicht-archivierte, nach sort_order.
-test('getCategories liefert den vollen Kategorienbaum (10 Ober-, 33 Unterkategorien)', async () => {
+test('getCategories liefert den vollen Kategorienbaum (10 Ober-, 34 Unterkategorien)', async () => {
   const db = await createTestDb();
   const categories = getCategories(db);
 
-  assert.equal(categories.length, 43);
+  assert.equal(categories.length, 44);
   const top = categories.filter((c) => c.parent_id === null);
   assert.equal(top.length, 10);
 
@@ -34,6 +34,24 @@ test('getCategories liefert den vollen Kategorienbaum (10 Ober-, 33 Unterkategor
   const subOfPersoenlich = categories.filter((c) => c.parent_id === persoenlich.id).map((c) => c.name);
   assert.deepEqual(
     subOfPersoenlich.sort(),
-    ['Beauty', 'Kleidung', 'Geschenke', 'Handy', 'Mitgliedschaften', 'Online Shopping'].sort(),
+    ['Beauty', 'Kleidung & Schuhe', 'Geschenke', 'Handy', 'Mitgliedschaften', 'Anschaffungen'].sort(),
   );
+});
+
+// Migration 010: Umbenennungen und die neue Unterkategorie unter Lebensmittel.
+test('Lebensmittel hat Einkauf, Essen gehen und Kantine/Mittag', async () => {
+  const db = await createTestDb();
+  const categories = getCategories(db);
+  const lebensmittel = findCategory(categories, 'Lebensmittel');
+
+  const subs = categories.filter((c) => c.parent_id === lebensmittel.id);
+  assert.deepEqual(subs.map((c) => c.name), ['Einkauf', 'Essen gehen', 'Kantine/Mittag'], 'nach sort_order');
+});
+
+test('Die alten Kategorienamen existieren nicht mehr', async () => {
+  const db = await createTestDb();
+  const names = getCategories(db).map((c) => c.name);
+
+  assert.ok(!names.includes('Kleidung'), '"Kleidung" wurde umbenannt');
+  assert.ok(!names.includes('Online Shopping'), '"Online Shopping" wurde umbenannt');
 });
