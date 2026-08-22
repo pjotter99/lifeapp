@@ -25,7 +25,7 @@ test('getCategorySummary ist leer ohne Ausgaben', async () => {
   const db = await createTestDb();
   const summary = getCategorySummary(db, '2026-03');
 
-  assert.deepEqual(summary, { month: '2026-03', total_cents: 0, categories: [] });
+  assert.deepEqual(summary, { month: '2026-03', total_cents: 0, exceptional_cents: 0, categories: [] });
 });
 
 // Default-Monat = heute, ohne Angabe.

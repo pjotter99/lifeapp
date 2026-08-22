@@ -87,6 +87,7 @@ export function ExpenseEntry() {
   const [kind, setKind] = useState<EntryKind>('expense');
   const [topCategoryId, setTopCategoryId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [isExceptional, setIsExceptional] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +142,7 @@ export function ExpenseEntry() {
     setNote('');
     setAccountId(accounts[0]?.id ?? null);
     setKind('expense');
+    setIsExceptional(false);
     setTopCategoryId(null);
     setSelectedCategoryId(null);
     setDetailsOpen(false);
@@ -206,6 +208,7 @@ export function ExpenseEntry() {
         category_id: selectedCategoryId,
         date,
         ...(note.trim() ? { note: note.trim() } : {}),
+        ...(isExceptional ? { is_exceptional: true } : {}),
         ...(needsAccountField && accountId !== null ? { account_id: accountId } : {}),
       });
       await persist();
@@ -335,6 +338,14 @@ export function ExpenseEntry() {
         <div className="flex flex-col gap-4">
           <Input label="Datum" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           <Input label="Notiz" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
+
+          {/* Zaehlt im Monat mit, spaeter aber nicht im Durchschnitt. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="hud-label">Einmalig</span>
+            <Chip selected={isExceptional} className="self-start" onClick={() => setIsExceptional((v) => !v)}>
+              Außergewöhnlich
+            </Chip>
+          </div>
 
           {needsAccountField && (
             <div className="flex flex-col gap-1.5">

@@ -53,9 +53,21 @@ Migration 004 den ursprünglichen Seed aus Migration 001).
 ### transactions
 ```
 id, date, amount_cents, category_id, account_id, payee, note,
-source, source_hash, category_locked, recurring_id (nullable), created_at
+source, source_hash, category_locked, recurring_id (nullable), created_at,
+is_exceptional
 ```
 `recurring_id` gesetzt = diese Buchung stammt aus einem Fixkosten-Eintrag.
+
+**`is_exceptional`** kennzeichnet einmalige Ausgaben: Waschmaschine,
+Autoreparatur, Zahnarzt, Urlaub. Setzbar beim Erfassen und nachträglich im
+Nachkategorisieren-Screen (dort über „Auch kategorisierte" auch an längst
+zugeordneten Buchungen).
+
+In der Monatsauswertung **eingeblendet, aber markiert** — das Geld ist
+abgeflossen, es gehört in die Summe. Getrennt ausgewiesen als „davon
+außergewöhnlich". Die Hochrechnung schließt sie später standardmäßig aus:
+eine einzelne Autoreparatur zieht den Monatsdurchschnitt sonst so weit hoch,
+dass die Zahl nichts mehr aussagt.
 
 ### recurring
 **Fixkosten und Abos sind dieselbe Tabelle.** Ein Abo ist ein Fixkosten-Eintrag

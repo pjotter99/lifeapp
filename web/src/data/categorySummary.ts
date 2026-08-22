@@ -7,6 +7,7 @@ export interface CategorySummaryTransaction {
   amount_cents: number;
   payee: string | null;
   note: string | null;
+  is_exceptional: number;
 }
 
 export interface CategorySummarySubcategory {
@@ -26,6 +27,13 @@ export interface CategorySummaryTop {
 export interface CategorySummary {
   month: string;
   total_cents: number;
+  /**
+   * Anteil der als aussergewoehnlich markierten Ausgaben am Monat, positiv wie
+   * total_cents. In total_cents ist er enthalten — das Geld ist abgeflossen —
+   * aber getrennt ausgewiesen, damit sichtbar bleibt, wie viel des Monats
+   * einmalig war.
+   */
+  exceptional_cents: number;
   categories: CategorySummaryTop[];
 }
 
@@ -63,6 +71,20 @@ export function getCategorySummary(db: Database, month?: string): CategorySummar
 
   const totalCents = Math.abs(topCategories.reduce((sum, c) => sum + c.amount_cents, 0));
 
+  // Getrennt abgefragt statt aus den Einzelbuchungen aufsummiert: die
+  // Hierarchie unten laedt nur Kategorien mit Umsatz, die Summe soll aber den
+  // ganzen Monat abdecken.
+  const exceptionalCents = Math.abs(
+    queryAll<{ total: number }>(
+      db,
+      `SELECT COALESCE(SUM(amount_cents), 0) AS total
+       FROM transactions
+       WHERE is_exceptional = 1 AND is_transfer = 0 AND amount_cents < 0
+         AND date >= ? AND date < ?`,
+      [monthStart, nextMonthStart],
+    )[0]!.total,
+  );
+
   const categories: CategorySummaryTop[] = topCategories.map((top) => {
     const subcategories = queryAll<{ id: number; name: string; amount_cents: number }>(
       db,
@@ -79,7 +101,7 @@ export function getCategorySummary(db: Database, month?: string): CategorySummar
     const subcategoriesWithTransactions: CategorySummarySubcategory[] = subcategories.map((sub) => {
       const transactions = queryAll<CategorySummaryTransaction>(
         db,
-        `SELECT id, date, amount_cents, payee, note
+        `SELECT id, date, amount_cents, payee, note, is_exceptional
          FROM transactions
          WHERE category_id = ? AND is_transfer = 0 AND amount_cents < 0
            AND date >= ? AND date < ?
@@ -97,5 +119,5 @@ export function getCategorySummary(db: Database, month?: string): CategorySummar
     };
   });
 
-  return { month: resolvedMonth, total_cents: totalCents, categories };
+  return { month: resolvedMonth, total_cents: totalCents, exceptional_cents: exceptionalCents, categories };
 }

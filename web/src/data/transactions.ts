@@ -33,6 +33,7 @@ export interface Transaction {
   hash_seq: number;
   period: string | null;
   is_transfer: number;
+  is_exceptional: number;
 }
 
 export interface CreateTransactionInput {
@@ -41,6 +42,8 @@ export interface CreateTransactionInput {
   account_id?: number;
   date?: string;
   note?: string;
+  /** Einmalige, nicht wiederkehrende Ausgabe — zaehlt im Monat mit, nicht im Schnitt. */
+  is_exceptional?: boolean;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -158,9 +161,9 @@ export function createTransaction(db: Database, input: CreateTransactionInput): 
   execRun(
     db,
     `INSERT INTO transactions
-       (date, amount_cents, category_id, account_id, note, source, source_hash, category_locked, recurring_id, is_transfer)
-     VALUES (?, ?, ?, ?, ?, 'manual', NULL, 1, NULL, ?)`,
-    [date, storedAmount, input.category_id, accountId, note, isTransfer ? 1 : 0],
+       (date, amount_cents, category_id, account_id, note, source, source_hash, category_locked, recurring_id, is_transfer, is_exceptional)
+     VALUES (?, ?, ?, ?, ?, 'manual', NULL, 1, NULL, ?, ?)`,
+    [date, storedAmount, input.category_id, accountId, note, isTransfer ? 1 : 0, input.is_exceptional ? 1 : 0],
   );
 
   return queryOne<Transaction>(db, 'SELECT * FROM transactions WHERE id = ?', [lastInsertRowId(db)])!;

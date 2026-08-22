@@ -16,12 +16,17 @@ export interface UncategorizedTransaction {
   note: string | null;
   source: string;
   account_id: number;
+  is_exceptional: number;
+  /** null, solange keine Kategorie gesetzt ist. */
+  category_id: number | null;
+  category_name: string | null;
 }
 
 export interface CategorizeInput {
   category_id: number;
   payee?: string | null;
   note?: string | null;
+  is_exceptional?: boolean;
 }
 
 export interface SplitPart {
@@ -54,15 +59,47 @@ export function isTransferCategory(db: Database, categoryId: number): boolean {
   return parent?.name === 'Transfer';
 }
 
-/** Buchungen ohne Kategorie, aelteste zuerst — so arbeitet man den Stapel chronologisch ab. */
-export function getUncategorized(db: Database): UncategorizedTransaction[] {
+/**
+ * Buchungen ohne Kategorie, aelteste zuerst — so arbeitet man den Stapel
+ * chronologisch ab.
+ *
+ * includeCategorized holt zusaetzlich die bereits zugeordneten dazu: nur so
+ * laesst sich das Kennzeichen "aussergewoehnlich" nachtraeglich an einer
+ * Buchung setzen, die man erst spaeter als einmalig erkennt. Dann auf die
+ * neuesten begrenzt, sonst waere der Screen nach einem Jahr unbenutzbar.
+ */
+export function getUncategorized(db: Database, includeCategorized = false): UncategorizedTransaction[] {
+  const columns = `t.id, t.date, t.amount_cents, t.payee, t.note, t.source, t.account_id,
+                   t.is_exceptional, t.category_id, c.name AS category_name`;
+  if (!includeCategorized) {
+    return queryAll<UncategorizedTransaction>(
+      db,
+      `SELECT ${columns}
+       FROM transactions t
+       LEFT JOIN categories c ON c.id = t.category_id
+       WHERE t.category_id IS NULL
+       ORDER BY t.date, t.id`,
+    );
+  }
   return queryAll<UncategorizedTransaction>(
     db,
-    `SELECT id, date, amount_cents, payee, note, source, account_id
-     FROM transactions
-     WHERE category_id IS NULL
-     ORDER BY date, id`,
+    `SELECT ${columns}
+     FROM transactions t
+     LEFT JOIN categories c ON c.id = t.category_id
+     ORDER BY t.category_id IS NULL DESC, t.date DESC, t.id DESC
+     LIMIT 100`,
   );
+}
+
+/**
+ * Setzt nur das Kennzeichen, ohne die Kategorie anzufassen — fuer das
+ * nachtraegliche Markieren einer laengst zugeordneten Buchung.
+ */
+export function setExceptional(db: Database, id: number, value: boolean): void {
+  const { changes } = execRun(db, 'UPDATE transactions SET is_exceptional = ? WHERE id = ?', [value ? 1 : 0, id]);
+  if (changes === 0) {
+    throw new Error('Buchung nicht gefunden.');
+  }
 }
 
 /**
@@ -94,6 +131,7 @@ export function categorizeTransaction(db: Database, id: number, input: Categoriz
   };
   if (input.payee !== undefined) updates.payee = normalizeText(input.payee);
   if (input.note !== undefined) updates.note = normalizeText(input.note);
+  if (input.is_exceptional !== undefined) updates.is_exceptional = input.is_exceptional ? 1 : 0;
 
   const keys = Object.keys(updates);
   execRun(

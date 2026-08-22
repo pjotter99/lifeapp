@@ -124,6 +124,13 @@ export function Auswertung() {
             <Donut categories={data.categories} totalCents={data.total_cents} />
           </div>
 
+          {data.exceptional_cents > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="hud-label text-warn">davon außergewöhnlich</span>
+              <Amount cents={-data.exceptional_cents} size="sm" />
+            </div>
+          )}
+
           <Panel title="Kategorien" status={monthLabel(month)}>
             {data.categories.map((cat, index) => {
               const percent = data.total_cents > 0 ? (Math.abs(cat.amount_cents) / data.total_cents) * 100 : 0;
@@ -161,6 +168,10 @@ export function Auswertung() {
                                 <div key={tx.id} className="flex items-center gap-3">
                                   <span className="hud-label">{formatShortDate(tx.date)}</span>
                                   <span className="flex-1 truncate text-xs text-text-dim">{tx.payee ?? tx.note ?? ''}</span>
+                                  {/* Eingeblendet, aber markiert: das Geld ist
+                                      abgeflossen, nur der Schnitt soll spaeter
+                                      nichts davon wissen. */}
+                                  {tx.is_exceptional === 1 && <span className="hud-label text-warn">einmalig</span>}
                                   <Amount cents={tx.amount_cents} size="sm" />
                                 </div>
                               ))}

@@ -9,6 +9,7 @@ import { getReadyDb, persist } from './data/sqlite.ts';
 import {
   categorizeTransaction,
   getUncategorized,
+  setExceptional,
   splitTransaction,
   type SplitPart,
   type UncategorizedTransaction,
@@ -36,6 +37,10 @@ export function Nachkategorisieren() {
   const [dbError, setDbError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<UncategorizedTransaction[]>([]);
+  // Standardmaessig nur die offenen. Eingeschaltet kommen die bereits
+  // zugeordneten dazu — nur so laesst sich "aussergewoehnlich" nachtraeglich
+  // an einer laengst kategorisierten Buchung setzen.
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     getReadyDb()
@@ -46,11 +51,11 @@ export function Nachkategorisieren() {
   useEffect(() => {
     if (!db) return;
     setCategories(getCategories(db));
-    setItems(getUncategorized(db));
-  }, [db]);
+    setItems(getUncategorized(db, showAll));
+  }, [db, showAll]);
 
   function reload() {
-    if (db) setItems(getUncategorized(db));
+    if (db) setItems(getUncategorized(db, showAll));
   }
 
   return (
@@ -61,6 +66,10 @@ export function Nachkategorisieren() {
       <h1 className="hud-page-title">Nachkategorisieren</h1>
       {dbError && <p className="text-sm text-negative">{dbError}</p>}
 
+      <Chip selected={showAll} className="self-start" onClick={() => setShowAll((v) => !v)}>
+        Auch kategorisierte
+      </Chip>
+
       {db && items.length === 0 && (
         <Panel>
           <p className="text-sm text-text-dim">Alle Buchungen sind kategorisiert.</p>
@@ -69,7 +78,7 @@ export function Nachkategorisieren() {
 
       {items.length > 0 && (
         <p className="hud-label">
-          {items.length} offen — älteste zuerst
+          {showAll ? `${items.length} Buchungen — offene zuerst` : `${items.length} offen — älteste zuerst`}
         </p>
       )}
 
@@ -95,8 +104,10 @@ function UncategorizedItem({
 }) {
   const [payee, setPayee] = useState(item.payee ?? '');
   const [note, setNote] = useState(item.note ?? '');
-  const [topCategoryId, setTopCategoryId] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [topCategoryId, setTopCategoryId] = useState<number | null>(
+    item.category_id === null ? null : (categories.find((c) => c.id === item.category_id)?.parent_id ?? null),
+  );
+  const [categoryId, setCategoryId] = useState<number | null>(item.category_id);
   const [splitting, setSplitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -107,6 +118,28 @@ function UncategorizedItem({
   const [ruleWanted, setRuleWanted] = useState(false);
   const [rulePattern, setRulePattern] = useState(() => (item.payee ? suggestPattern(item.payee) : ''));
   const [ruleMatchType, setRuleMatchType] = useState<MatchType>('contains');
+  const [exceptional, setExceptionalState] = useState(item.is_exceptional === 1);
+
+  const alreadyCategorized = item.category_id !== null;
+
+  /**
+   * Bei einer schon zugeordneten Buchung sofort schreiben: dort gibt es keinen
+   * Speichern-Schritt, den man abwarten koennte. Bei einer offenen wandert der
+   * Wert stattdessen mit categorizeTransaction mit.
+   */
+  async function toggleExceptional() {
+    const next = !exceptional;
+    setExceptionalState(next);
+    if (!db || !alreadyCategorized) return;
+    try {
+      setExceptional(db, item.id, next);
+      await persist();
+      onDone();
+    } catch (err) {
+      setExceptionalState(!next);
+      setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
+    }
+  }
 
   async function save() {
     if (!db) return;
@@ -117,7 +150,7 @@ function UncategorizedItem({
     setSaving(true);
     setError(null);
     try {
-      categorizeTransaction(db, item.id, { category_id: categoryId, payee, note });
+      categorizeTransaction(db, item.id, { category_id: categoryId, payee, note, is_exceptional: exceptional });
       // Regel nach der Buchung anlegen: schlaegt sie fehl (leeres Muster,
       // archivierte Kategorie), ist die Kategorisierung trotzdem gespeichert.
       if (ruleWanted && rulePattern.trim() !== '') {
@@ -143,6 +176,13 @@ function UncategorizedItem({
       </div>
 
       {item.note && item.payee && <p className="hud-label">{item.note}</p>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {alreadyCategorized && item.category_name && <span className="hud-label">{item.category_name}</span>}
+        <Chip selected={exceptional} onClick={toggleExceptional}>
+          Außergewöhnlich
+        </Chip>
+      </div>
 
       {splitting ? (
         <SplitForm
