@@ -585,10 +585,9 @@ Nach jedem Punkt committen und prüfen. Nicht mehrere Punkte zusammenfassen.
 ### Aktueller Stand
 
 Umbau auf lokale Datenhaltung (sql.js + IndexedDB, kein Server) abgeschlossen.
-App läuft live auf GitHub Pages unter `/lifeapp/`. Migrationen bis 007.
-Letzte Korrekturrunde (Details-Notiz, Tastatur/Tab-Leiste, Kategorieauswahl
-Ausgabe/Einnahme/Transfer, Stammdaten Beendete-Filter/Löschen, Auswertung
-Mehrfach-Aufklappen, Feldbreiten) erledigt.
+App läuft live auf GitHub Pages unter `/lifeapp/`. Migrationen bis 012. Das
+tote Fastify-Backend ist entfernt; `migrations/` bleibt und wird zur Build-Zeit
+ins Frontend eingelesen.
 
 Umstellung auf den HUD-Stil abgeschlossen: Tokens, Basis-Komponenten und alle
 Screens. Komponenten sind `Amount`, `Button`, `Chip`, `Input`, `Panel`,
@@ -596,6 +595,28 @@ Screens. Komponenten sind `Amount`, `Button`, `Chip`, `Input`, `Panel`,
 `/styleguide` zeigt alle Komponenten in allen Zuständen. Die Begründungen
 hinter den Tokens stehen in `SPEC-design-hud.md`; bindend ist der
 Design-Abschnitt oben.
+
+Seitdem hinzugekommen:
+- **CAMT-Import** (Migration 008/009): CAMT.052 einlesen, Kontozuordnung über
+  die letzten vier IBAN-Stellen, Dedup über `source_hash`, Abgleich gegen
+  bestehende `recurring`-Buchungen. Nachkategorisieren als eigener Screen.
+- **Kategorieregeln** (Migration 011): `category_rules` mit `pattern`,
+  `match_type`, `priority`. Greifen beim Import, setzen `category_locked`
+  nicht. Verwaltung auf /stammdaten.
+- **Einmalausgaben** (Migration 012): `transactions.is_exceptional`. Beim
+  Erfassen und Nachkategorisieren setzbar, in der Monatsauswertung markiert
+  statt versteckt.
+- **Kategorienbaum nachgeschärft** (Migration 010): „Kleidung & Schuhe",
+  „Anschaffungen", „Kantine/Mittag".
+- **Fremdschlüssel durchgesetzt** — siehe „Fremdschlüssel" oben.
+- **Hochrechnung** auf dem Dashboard: Durchschnitt der letzten drei *vollen*
+  Monate (der laufende zählt nicht mit, er ist angebrochen), Transfers und
+  Einmalausgaben ausgenommen, daraus die Kontostand-Kurve auf 3/6/9/12 Monate.
+  Unter zwei vollen Monaten steht dort ein Hinweis statt einer Kurve.
+  Zwei Dinge, die man beim Lesen der Kurve wissen muss: die Basis endet im
+  Vormonat („Basis: Durchschnitt Mai–Juli", nicht bis August), und weil
+  Transfers aus dem Schnitt fallen, aber im Kontostand stecken, liegt die
+  Linie um die monatliche Sparrate zu hoch.
 
 Offen:
 - Saldo-Abgleich gegen die Realität (`balance_checks`, siehe „Erweiterung")
