@@ -2,6 +2,7 @@ import type { Database } from 'sql.js';
 import { useEffect, useState } from 'react';
 import { Amount, Button, Panel, Ring } from './components';
 import { BottomTabBar } from './BottomTabBar';
+import { ProjectionPanel } from './ProjectionPanel';
 import { buildExportArchive } from './data/backup.ts';
 import {
   loadLastGithubBackupSuccessAt,
@@ -12,6 +13,7 @@ import {
 } from './data/indexeddb.ts';
 import { countUncategorized } from './data/camtImport.ts';
 import { getDashboard, type Dashboard as DashboardData } from './data/dashboard.ts';
+import { getProjection, type Projection } from './data/projection.ts';
 import { getReadyDb } from './data/sqlite.ts';
 import { routeHref } from './routing.ts';
 import { shareOrDownload } from './shareOrDownload.ts';
@@ -78,6 +80,7 @@ export function Dashboard() {
   const [lastGithubBackupAt, setLastGithubBackupAt] = useState<string | null>();
 
   const [uncategorized, setUncategorized] = useState(0);
+  const [projection, setProjection] = useState<Projection | null>(null);
 
   const [reminder, setReminder] = useState<{ lastExportAt: string | null; dismissedAt: string | null } | null>(null);
   const [reminderExporting, setReminderExporting] = useState(false);
@@ -89,6 +92,7 @@ export function Dashboard() {
         setDb(database);
         setData(getDashboard(database));
         setUncategorized(countUncategorized(database));
+        setProjection(getProjection(database));
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Laden fehlgeschlagen.'));
 
@@ -270,6 +274,8 @@ export function Dashboard() {
           </div>
         </Panel>
       )}
+
+      {projection && <ProjectionPanel projection={projection} index={panelIndex++} />}
 
       {lastGithubBackupAt !== undefined && (
         <p className={`hud-label ${isGithubBackupStale ? 'text-negative' : ''}`}>

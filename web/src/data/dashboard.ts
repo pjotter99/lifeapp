@@ -1,5 +1,5 @@
 import type { Database } from 'sql.js';
-import { getAccounts } from './accounts.ts';
+import { getCurrentBalance } from './balance.ts';
 import { monthlyEquivalentCents } from './recurring.ts';
 import { getCurrentSavingsGoal } from './savingsGoal.ts';
 import { queryAll, queryOne } from './sqlHelpers.ts';
@@ -43,24 +43,9 @@ function today(): string {
 export function getDashboard(db: Database): Dashboard {
   const currentMonth = today().slice(0, 7);
 
-  // --- Kontostand: opening_balance_cents + Buchungen ab opening_date, pro
-  // aktivem Konto summiert. Fehlt bei irgendeinem opening_date, ist der
-  // Gesamtwert nicht verlaesslich berechenbar.
-  const accounts = getAccounts(db);
-  const balanceAvailable = accounts.length > 0 && accounts.every((a) => a.opening_date !== null);
-
-  let balanceCents: number | null = null;
-  if (balanceAvailable) {
-    balanceCents = 0;
-    for (const acc of accounts) {
-      const sum = queryOne<{ total: number }>(
-        db,
-        'SELECT COALESCE(SUM(amount_cents), 0) AS total FROM transactions WHERE account_id = ? AND date >= ?',
-        [acc.id, acc.opening_date!],
-      )!.total;
-      balanceCents += acc.opening_balance_cents + sum;
-    }
-  }
+  // --- Kontostand: gemeinsam mit der Prognose berechnet (balance.ts), damit
+  // Ring und hochgerechnete Linie garantiert am selben Punkt starten.
+  const { available: balanceAvailable, cents: balanceCents } = getCurrentBalance(db);
 
   // --- Anstehende Fixkosten: aktive kind='expense'-Eintraege, faellig
   // diesen Monat, fuer die noch keine Buchung dieser Periode existiert.
